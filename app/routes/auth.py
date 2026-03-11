@@ -1,8 +1,9 @@
 from typing import Callable
 from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-from app.models.user import db, User
-from app.models.system import SystemSetting
+from app.extensions import db
+from app.models.user import User
+from app.models.system_setting import SystemSetting
 from functools import wraps
 from datetime import datetime, timedelta
 import secrets

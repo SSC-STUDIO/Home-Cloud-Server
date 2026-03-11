@@ -41,6 +41,8 @@ instance/
 # Environments
 .env
 .venv
+.venv_win313/
+.venv_win314/
 env/
 venv/
 ENV/
@@ -53,6 +55,12 @@ venv.bak/
 
 # Uploads
 uploads/
+
+# Local test storage
+.tmp_storage/
+logs/
+home-cloud.pid
+*.pid
 
 # SSL certificates
 *.pem

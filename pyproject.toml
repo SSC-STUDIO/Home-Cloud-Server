@@ -14,13 +14,15 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
     "Topic :: System :: Filesystems",
 ]
 dependencies = [
     "Flask>=3.1.0",
     "Flask-SQLAlchemy>=3.1.1",
-    "SQLAlchemy>=1.4.49",
+    "SQLAlchemy>=2.0.45,<3.0",
     "Werkzeug>=3.1.3",
     "Jinja2>=3.1.6",
     "MarkupSafe>=3.0.2",
@@ -42,6 +44,7 @@ dependencies = [
     "blinker>=1.9.0",
     "requests>=2.31.0",
     "zipstream-new>=1.1.8",
+    "gunicorn>=22.0.0",
 ]
 
 [project.optional-dependencies]
@@ -89,7 +92,6 @@ dev-dependencies = [
 
 [tool.black]
 line-length = 88
-target-version = ['py311']
 include = '\.pyi?$'
 extend-exclude = '''
 /(

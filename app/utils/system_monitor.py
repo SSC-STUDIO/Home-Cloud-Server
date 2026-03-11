@@ -1,7 +1,9 @@
 import psutil
 import threading
 import time
-from app.models.system import SystemMetric, db, SystemSetting
+from app.models.system import SystemMetric
+from app.models.system_setting import SystemSetting
+from app.extensions import db
 import os
 import platform
 import datetime
@@ -111,7 +113,7 @@ class SystemMonitor:
         """
         # Check if auto cleanup is enabled
         auto_clean = SystemSetting.query.filter_by(key='auto_clean_trash').first()
-        if not auto_clean or auto_clean.value.lower() != 'true':
+        if not auto_clean or not auto_clean.get_typed_value():
             return
         
         # Import here to avoid circular imports
@@ -149,13 +151,16 @@ class SystemMonitor:
         # Log cleanup activity
         if expired_files or expired_folders:
             from app.models.activity import Activity
-            activity = Activity(
-                user_id=1,  # Admin user
-                action='auto_cleanup',
-                details=f'Auto-cleaned {len(expired_files)} files and {len(expired_folders)} folders from trash'
-            )
-            db.session.add(activity)
-            db.session.commit()
+            from app.models.user import User
+            admin_user = User.query.filter_by(role='admin').first()
+            if admin_user:
+                activity = Activity(
+                    user_id=admin_user.id,
+                    action='auto_cleanup',
+                    details=f'Auto-cleaned {len(expired_files)} files and {len(expired_folders)} folders from trash'
+                )
+                db.session.add(activity)
+                db.session.commit()
     
     def monitoring_thread(self):
         """

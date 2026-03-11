@@ -1,9 +1,12 @@
 from typing import Callable
-from flask import Blueprint, request, jsonify, session, g
-from app.models.user import db, User
+from flask import Blueprint, request, jsonify, session, g, current_app
+from app.extensions import db
+from app.models.user import User
 from app.models.file import File, Folder
-from app.models.system import SystemMetric, SystemSetting
+from app.models.system import SystemMetric
+from app.models.system_setting import SystemSetting
 from functools import wraps
+import base64
 import datetime
 import psutil
 import os
@@ -13,63 +16,87 @@ from werkzeug.security import check_password_hash
 
 api = Blueprint('api', __name__)
 
+def _safe_disk_usage(path: str):
+    try:
+        return psutil.disk_usage(path)
+    except Exception:
+        fallback = os.path.abspath(os.sep)
+        return psutil.disk_usage(fallback)
+
+def _parse_basic_auth(auth_header: str) -> tuple[str, str]:
+    if not auth_header or 'Basic ' not in auth_header:
+        raise ValueError('Authentication required')
+
+    encoded_credentials = auth_header.split(' ', 1)[1].strip()
+    if not encoded_credentials:
+        raise ValueError('Invalid credentials')
+
+    # Try standard Basic auth (base64), fallback to plain user:pass if provided
+    try:
+        decoded = base64.b64decode(encoded_credentials).decode('utf-8')
+    except Exception:
+        decoded = encoded_credentials
+
+    if ':' not in decoded:
+        raise ValueError('Invalid credentials')
+
+    username, password = decoded.split(':', 1)
+    if not username or not password:
+        raise ValueError('Invalid credentials')
+
+    return username, password
+
+
 # API authentication
 def api_login_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
-        
-        if not auth_header or 'Basic ' not in auth_header:
-            return jsonify({'error': 'Authentication required'}), 401
-        
+
         try:
-            # Extract username and password from header
-            encoded_credentials = auth_header.split(' ')[1]
-            credentials = encoded_credentials.encode().decode('utf-8')
-            username, password = credentials.split(':')
-            
+            username, password = _parse_basic_auth(auth_header)
+
             user = User.query.filter_by(username=username).first()
-            
+
             if not user or not check_password_hash(user.password_hash, password):
                 return jsonify({'error': 'Invalid credentials'}), 401
-            
+
             # Store user in g for this request
             g.user = user
             return f(*args, **kwargs)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 401
         except Exception as e:
             return jsonify({'error': str(e)}), 401
-    
+
     return decorated_function
+
 
 def api_admin_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         auth_header = request.headers.get('Authorization')
-        
-        if not auth_header or 'Basic ' not in auth_header:
-            return jsonify({'error': 'Authentication required'}), 401
-        
+
         try:
-            # Extract username and password from header
-            encoded_credentials = auth_header.split(' ')[1]
-            credentials = encoded_credentials.encode().decode('utf-8')
-            username, password = credentials.split(':')
-            
+            username, password = _parse_basic_auth(auth_header)
+
             user = User.query.filter_by(username=username).first()
-            
+
             if not user or not check_password_hash(user.password_hash, password):
                 return jsonify({'error': 'Invalid credentials'}), 401
-            
+
             # Check if user is admin
             if user.role != 'admin':
                 return jsonify({'error': 'Admin privileges required'}), 403
-            
+
             # Store user in g for this request
             g.user = user
             return f(*args, **kwargs)
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 401
         except Exception as e:
             return jsonify({'error': str(e)}), 401
-    
+
     return decorated_function
 
 # User API endpoints
@@ -125,12 +152,19 @@ def list_files() -> jsonify:
 def api_create_folder() -> jsonify:
     user = g.user
     data = request.json
+    if not data:
+        return jsonify({'error': 'Invalid JSON body'}), 400
     
     folder_name = data.get('name')
     parent_id = data.get('parent_id')
     
     if not folder_name:
         return jsonify({'error': 'Folder name is required'}), 400
+
+    if parent_id is not None:
+        parent = Folder.query.filter_by(id=parent_id, user_id=user.id, is_deleted=False).first()
+        if not parent:
+            return jsonify({'error': 'Parent folder not found'}), 404
     
     # Check if folder already exists in the same parent
     existing_folder = Folder.query.filter_by(
@@ -169,11 +203,26 @@ def api_upload_file() -> jsonify:
     if uploaded_file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
     
+    # Resolve destination folder (default to root)
+    if folder_id:
+        folder = Folder.query.filter_by(id=folder_id, user_id=user.id, is_deleted=False).first()
+        if not folder:
+            return jsonify({'error': 'Folder not found'}), 404
+    else:
+        folder = Folder.query.filter_by(user_id=user.id, parent_id=None, is_deleted=False).first()
+        if not folder:
+            folder = Folder(name='root', user_id=user.id)
+            db.session.add(folder)
+            db.session.commit()
+
     # Get max upload size from settings
     max_size_setting = SystemSetting.query.filter_by(key='max_upload_size').first()
     max_size = 1024 * 1024 * 1024  # Default 1GB
     if max_size_setting:
-        max_size = max_size_setting.get_typed_value()
+        try:
+            max_size = int(max_size_setting.get_typed_value())
+        except (TypeError, ValueError):
+            pass
     
     # Check file size
     uploaded_file.seek(0, os.SEEK_END)
@@ -187,14 +236,19 @@ def api_upload_file() -> jsonify:
     if not user.has_space_for_file(file_size):
         return jsonify({'error': 'Not enough storage space'}), 400
     
+    # Validate file type using shared logic
+    from app.routes.files import allowed_file, get_file_type
+    if not allowed_file(uploaded_file.filename):
+        return jsonify({'error': 'File type not allowed'}), 400
+
     # Save file
     original_filename = secure_filename(uploaded_file.filename)
     
     # Generate unique filename to avoid conflicts
     filename = f"{uuid.uuid4().hex}_{original_filename}"
     
-    # Create uploads directory if it doesn't exist
-    upload_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'uploads', str(user.id))
+    # Create uploads directory if it doesn't exist (use folder id for consistency)
+    upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(folder.id))
     if not os.path.exists(upload_dir):
         os.makedirs(upload_dir)
     
@@ -202,7 +256,6 @@ def api_upload_file() -> jsonify:
     uploaded_file.save(file_path)
     
     # Create file record in database
-    from app.routes.files import get_file_type
     file_type = get_file_type(original_filename)
     new_file = File(
         filename=filename,
@@ -211,7 +264,7 @@ def api_upload_file() -> jsonify:
         size=file_size,
         file_type=file_type,
         user_id=user.id,
-        folder_id=folder_id
+        folder_id=folder.id
     )
     
     db.session.add(new_file)
@@ -251,7 +304,8 @@ def api_system_stats() -> jsonify:
     # Get real-time system stats
     cpu_percent = psutil.cpu_percent(interval=1)
     memory = psutil.virtual_memory()
-    disk = psutil.disk_usage('/')
+    disk_path = current_app.config.get('UPLOAD_FOLDER', os.path.abspath(os.sep))
+    disk = _safe_disk_usage(disk_path)
     net_io_counters = psutil.net_io_counters()
     
     # Record metrics

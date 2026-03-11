@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import os
-from app.models.user import db
+from app.extensions import db
 
 class File(db.Model):
     __tablename__ = 'files'
@@ -37,7 +37,7 @@ class File(db.Model):
     
     def move_to_trash(self, retention_days: int = 30) -> None:
         """Move file to trash with specified retention period"""
-        from app.models.system import SystemSetting
+        from app.models.system_setting import SystemSetting
         from app.models.user import User
         
         # First check if user has a specific retention setting
@@ -111,7 +111,7 @@ class Folder(db.Model):
     
     def move_to_trash(self, retention_days: int = 30) -> None:
         """Move folder to trash with specified retention period"""
-        from app.models.system import SystemSetting
+        from app.models.system_setting import SystemSetting
         from app.models.user import User
         
         # First check if user has a specific retention setting

@@ -1,0 +1,19 @@
+[Unit]
+Description=Home Cloud Server (Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__APP_USER__
+Group=__APP_USER__
+WorkingDirectory=__APP_DIR__
+EnvironmentFile=/etc/home-cloud/home-cloud.env
+ExecStart=__APP_DIR__/.venv/bin/gunicorn --workers 2 --threads 4 --bind 127.0.0.1:5000 --timeout 120 --graceful-timeout 30 wsgi:app
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

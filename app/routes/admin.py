@@ -1,7 +1,9 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
-from app.models.user import db, User
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session, current_app
+from app.extensions import db
+from app.models.user import User
 from app.models.file import File, Folder
-from app.models.system import SystemSetting, SystemMetric
+from app.models.system import SystemMetric
+from app.models.system_setting import SystemSetting
 from app.routes.auth import admin_required
 from werkzeug.security import generate_password_hash
 import psutil
@@ -12,6 +14,13 @@ from app.utils.system_monitor import SystemMonitor
 
 admin = Blueprint('admin', __name__)
 
+def _safe_disk_usage(path: str):
+    try:
+        return psutil.disk_usage(path)
+    except Exception:
+        fallback = os.path.abspath(os.sep)
+        return psutil.disk_usage(fallback)
+
 @admin.route('/admin')
 @admin_required
 def index() -> str:
@@ -20,10 +29,13 @@ def index() -> str:
     total_files = File.query.filter_by(is_deleted=False).count()
     
     # Get system statistics
+    disk_path = current_app.config.get('UPLOAD_FOLDER', os.path.abspath(os.sep))
+    disk_usage = _safe_disk_usage(disk_path)
+
     system_stats = {
         'cpu_percent': psutil.cpu_percent(),
         'memory_percent': psutil.virtual_memory().percent,
-        'disk_percent': psutil.disk_usage('/').percent,
+        'disk_percent': disk_usage.percent,
         'platform': platform.platform(),
         'python_version': platform.python_version(),
         'uptime': datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())
