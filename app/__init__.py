@@ -7,8 +7,14 @@ from datetime import datetime
 from app.utils.system_monitor import SystemMonitor
 from flask_migrate import Migrate
 import ssl
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 def create_app(config_name='default'):
+    if config_name == 'default':
+        config_name = os.environ.get('APP_CONFIG', 'production')
+    if config_name not in config:
+        config_name = 'default'
+
     # Specify the template folder explicitly
     template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
     static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
@@ -17,6 +23,11 @@ def create_app(config_name='default'):
                 template_folder=template_dir,
                 static_folder=static_dir)
     app.config.from_object(config[config_name])
+    if hasattr(config[config_name], 'init_app'):
+        config[config_name].init_app(app)
+
+    if app.config.get('TRUST_PROXY_HEADERS', True):
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     
     # Ensure custom temp directory (for large file uploads) is used system-wide
     temp_dir = app.config.get('TEMP_UPLOAD_PATH')
@@ -71,6 +82,10 @@ def create_app(config_name='default'):
     @app.route('/')
     def index():
         return redirect(url_for('auth.login'))
+
+    @app.route('/healthz')
+    def healthz():
+        return {'status': 'ok', 'version': app.config.get('APP_VERSION', '1.0.0')}, 200
     
     # Error handlers
     @app.errorhandler(404)

@@ -4,6 +4,27 @@ import platform
 from pathlib import Path
 
 
+def get_env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+
+    return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+
+def get_env_int(name, default):
+    value = os.environ.get(name)
+    if value is None or str(value).strip() == '':
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+def expand_path(value):
+    if not value:
+        return None
+    return str(Path(value).expanduser())
+
 def _project_ssl_path(filename: str) -> str:
     """Get SSL file path inside project directory."""
     return str(Path(__file__).parent / 'ssl' / filename)
@@ -53,16 +74,18 @@ class Config:
     APP_VERSION = "1.0.0"  
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    UPLOAD_FOLDER = get_storage_path()
-    MAX_CONTENT_LENGTH = 20000 * 1024 * 1024 * 1024  # 20TB max file size
+    UPLOAD_FOLDER = expand_path(os.environ.get('UPLOAD_FOLDER')) or get_storage_path()
+    MAX_CONTENT_LENGTH = get_env_int('MAX_CONTENT_LENGTH', 20000 * 1024 * 1024 * 1024)  # 20TB default
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mp3', 
                          'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'md', 'py', 
                          'js', 'css', 'html', 'json', 'xml'}
     
     # Server configuration
-    USE_HTTPS = True
+    USE_HTTPS = get_env_bool('USE_HTTPS', True)
     SERVER_PORT = int(os.environ.get('SERVER_PORT', 5000))
     SERVER_HOST = os.environ.get('SERVER_HOST', '0.0.0.0')
+    APP_CONFIG = os.environ.get('APP_CONFIG', 'production')
+    TRUST_PROXY_HEADERS = get_env_bool('TRUST_PROXY_HEADERS', True)
     
     # SSL certificate configuration
     system = platform.system().lower()
@@ -74,17 +97,17 @@ class Config:
         SSL_KEY = _project_ssl_path('home-cloud.key')
     
     # Trash bin configuration
-    TRASH_ENABLED = True
-    DEFAULT_TRASH_RETENTION_DAYS = 30
-    AUTO_CLEAN_TRASH = True
-    TRASH_PATH = str(get_base_storage_path() / 'trash')
+    TRASH_ENABLED = get_env_bool('TRASH_ENABLED', True)
+    DEFAULT_TRASH_RETENTION_DAYS = get_env_int('DEFAULT_TRASH_RETENTION_DAYS', 30)
+    AUTO_CLEAN_TRASH = get_env_bool('AUTO_CLEAN_TRASH', True)
+    TRASH_PATH = expand_path(os.environ.get('TRASH_PATH')) or str(get_base_storage_path() / 'trash')
     
     # Transfer rate monitoring
-    MONITOR_TRANSFER_SPEED = True
+    MONITOR_TRANSFER_SPEED = get_env_bool('MONITOR_TRANSFER_SPEED', True)
     
     # Upload configuration
-    ALLOW_FOLDER_UPLOAD = True
-    TEMP_UPLOAD_PATH = str(get_base_storage_path() / 'temp')
+    ALLOW_FOLDER_UPLOAD = get_env_bool('ALLOW_FOLDER_UPLOAD', True)
+    TEMP_UPLOAD_PATH = expand_path(os.environ.get('TEMP_UPLOAD_PATH')) or str(get_base_storage_path() / 'temp')
 
     @staticmethod
     def init_app(app):

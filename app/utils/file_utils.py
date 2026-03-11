@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import hashlib
 import mimetypes
@@ -48,6 +50,8 @@ def create_unique_filename(original_filename: str) -> str:
         str: Unique filename
     """
     filename = secure_filename(original_filename)
+    if not filename:
+        filename = "file"
     unique_filename = f"{uuid.uuid4().hex}_{filename}"
     return unique_filename
 

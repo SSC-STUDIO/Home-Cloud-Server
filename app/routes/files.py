@@ -1,7 +1,8 @@
 from flask import Blueprint, current_app, render_template, request, redirect, url_for, flash, jsonify, send_file, session, Response
-from app.models.user import db, User
+from app.extensions import db
+from app.models.user import User
 from app.models.file import File, Folder
-from app.models.system import SystemSetting
+from app.models.system_setting import SystemSetting
 from app.models.activity import Activity
 from app.routes.auth import login_required
 from werkzeug.utils import secure_filename
@@ -24,10 +25,12 @@ def allowed_file(filename):
     allowed_types_setting = SystemSetting.query.filter_by(key='allowed_file_types').first()
     if allowed_types_setting:
         allowed_types = allowed_types_setting.get_typed_value()
+        if not allowed_types:
+            return '.' in filename
         if allowed_types == '*':
             return True
         
-        allowed_extensions = set(allowed_types.split(','))
+        allowed_extensions = {ext.strip().lower() for ext in allowed_types.split(',') if ext.strip()}
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in allowed_extensions
     
@@ -141,7 +144,12 @@ def upload_file():
     
     # Get max upload size from settings
     max_size_setting = SystemSetting.query.filter_by(key='max_upload_size').first()
-    max_size = int(max_size_setting.value) if max_size_setting else 2000 * 1024 * 1024 * 1024  # Default 2TB
+    max_size = current_app.config.get('MAX_CONTENT_LENGTH', 2000 * 1024 * 1024 * 1024)  # Default 2TB
+    if max_size_setting:
+        try:
+            max_size = int(max_size_setting.get_typed_value())
+        except (TypeError, ValueError):
+            pass
     
     # Get user info
     user = User.query.get(user_id)
@@ -181,13 +189,15 @@ def upload_file():
         
         try:
             # Get the relative path for folder uploads
-            relative_path = uploaded_file.filename
+            relative_path = uploaded_file.filename.replace('\\', '/').lstrip('/')
             
             # Handle folder structure
             parent_folder = current_folder
             if is_folder_upload and '/' in relative_path:
                 # Split path into folder parts
-                path_parts = relative_path.split('/')
+                path_parts = [p for p in relative_path.split('/') if p not in ('', '.', '..')]
+                if not path_parts:
+                    continue
                 filename = path_parts.pop()  # Last part is the filename
                 
                 # Create folder structure
@@ -227,6 +237,9 @@ def upload_file():
                         created_folders[current_path] = parent_folder
             else:
                 filename = os.path.basename(relative_path)
+
+            if not filename:
+                continue
             
             # Check if file with same name exists
             existing_file = File.query.filter_by(
@@ -271,7 +284,7 @@ def upload_file():
             # Create folder structure in storage if needed
             folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(parent_folder.id))
             if not os.path.exists(folder_path):
-                os.makedirs(folder_path)
+                os.makedirs(folder_path, exist_ok=True)
             
             save_path = os.path.join(folder_path, storage_filename)
             
@@ -1006,6 +1019,26 @@ def batch_delete():
     
     deleted_files = 0
     deleted_folders = 0
+
+    def move_folder_to_trash(folder):
+        """Recursively move folder and all its contents to trash."""
+        moved_files = 0
+        moved_folders = 1
+
+        folder.move_to_trash()
+
+        files_in_folder = File.query.filter_by(folder_id=folder.id, user_id=user_id, is_deleted=False).all()
+        for file in files_in_folder:
+            file.move_to_trash()
+            moved_files += 1
+
+        subfolders = Folder.query.filter_by(parent_id=folder.id, user_id=user_id, is_deleted=False).all()
+        for subfolder in subfolders:
+            sub_files, sub_folders = move_folder_to_trash(subfolder)
+            moved_files += sub_files
+            moved_folders += sub_folders
+
+        return moved_files, moved_folders
     
     for item in selected_items:
         item_type, item_id = item.split('-')
@@ -1020,27 +1053,9 @@ def batch_delete():
         elif item_type == 'folder':
             folder = Folder.query.filter_by(id=item_id, user_id=user_id, is_deleted=False).first()
             if folder:
-                # Move folder and its contents to trash
-                folder.is_deleted = True
-                folder.deleted_at = datetime.utcnow()
-                
-                # Find all subfolders and mark them as deleted
-                def mark_subfolders_deleted(parent_id):
-                    subfolders = Folder.query.filter_by(parent_id=parent_id, is_deleted=False).all()
-                    for subfolder in subfolders:
-                        subfolder.is_deleted = True
-                        subfolder.deleted_at = datetime.utcnow()
-                        mark_subfolders_deleted(subfolder.id)
-                
-                # Mark all files in this folder as deleted
-                files_in_folder = File.query.filter_by(folder_id=folder.id, is_deleted=False).all()
-                for file in files_in_folder:
-                    file.is_deleted = True
-                    file.deleted_at = datetime.utcnow()
-                
-                # Mark all subfolders as deleted
-                mark_subfolders_deleted(folder.id)
-                deleted_folders += 1
+                moved_files, moved_folders = move_folder_to_trash(folder)
+                deleted_files += moved_files
+                deleted_folders += moved_folders
     
     db.session.commit()
     
@@ -1269,6 +1284,15 @@ def remote_download():
     # We will validate after finalizing filename
 
     try:
+        # Max upload size from settings (default 2TB)
+        max_size_setting = SystemSetting.query.filter_by(key='max_upload_size').first()
+        max_size = current_app.config.get('MAX_CONTENT_LENGTH', 2000 * 1024 * 1024 * 1024)
+        if max_size_setting:
+            try:
+                max_size = int(max_size_setting.get_typed_value())
+            except (TypeError, ValueError):
+                pass
+
         with requests.get(file_url, stream=True, timeout=30) as r:
             r.raise_for_status()
 
@@ -1298,6 +1322,9 @@ def remote_download():
 
             # Try to get size
             file_size = int(r.headers.get('Content-Length', 0))
+            if file_size and file_size > max_size:
+                flash('File too large', 'danger')
+                return redirect(url_for('files.index'))
 
             # Quota check
             user = User.query.get(user_id)
@@ -1324,9 +1351,13 @@ def remote_download():
             save_path = os.path.join(folder_path, storage_filename)
 
             # Write stream to file
+            downloaded = 0
             with open(save_path, 'wb') as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
+                        downloaded += len(chunk)
+                        if downloaded > max_size:
+                            raise ValueError('File too large')
                         f.write(chunk)
 
         # Final size if not known before
@@ -1366,6 +1397,14 @@ def remote_download():
         db.session.commit()
 
         flash('File downloaded successfully', 'success')
+    except ValueError as e:
+        if str(e) == 'File too large':
+            if 'save_path' in locals() and os.path.exists(save_path):
+                os.remove(save_path)
+            flash('File too large', 'danger')
+        else:
+            print(f"Remote download error: {e}")
+            flash('Failed to download file', 'danger')
     except Exception as e:
         print(f"Remote download error: {e}")
         flash('Failed to download file', 'danger')
