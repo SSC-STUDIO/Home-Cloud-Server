@@ -58,6 +58,16 @@ venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
+### 3.5 Windows UI Smoke Test (Headless Edge)
+
+This script boots the service locally, checks `GET /` returns 200 and the page title matches, then captures a headless Edge screenshot:
+
+```bash
+python scripts\smoke_ui_capture.py
+```
+
+Output: `output\ui\home-cloud.png`
+
 ### 4. Configure Storage Path
 
 #### Windows

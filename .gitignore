@@ -79,3 +79,6 @@ Thumbs.db
 
 # Translation files
 *.mo 
+
+# UI evidence
+output/ui/*.png
