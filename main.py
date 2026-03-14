@@ -9,8 +9,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _get_env_bool(name: str, default: bool = False) -> bool:
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 def main():
     app = create_app()
+    debug_enabled = app.config.get('DEBUG', False)
+    use_reloader = _get_env_bool('APP_USE_RELOADER', debug_enabled)
 
     use_https = app.config.get('USE_HTTPS', False)
     server_port = app.config.get('SERVER_PORT', 5000)
@@ -34,24 +43,25 @@ def main():
         if not os.path.exists(cert_path) or not os.path.exists(key_path):
             print(f"Warning: SSL certificate files not found at {cert_path} and {key_path}")
             print("Running without HTTPS. Please configure SSL certificates for secure operation.")
-            app.run(debug=app.config.get('DEBUG', False), host=server_host, port=server_port)
+            app.run(debug=debug_enabled, host=server_host, port=server_port, use_reloader=use_reloader)
             return
 
         try:
             context.load_cert_chain(cert_path, key_path)
             app.ssl_context = context
             app.run(
-                debug=app.config.get('DEBUG', False),
+                debug=debug_enabled,
                 host=server_host,
                 port=server_port,
                 ssl_context=context,
+                use_reloader=use_reloader,
             )
             return
         except Exception as e:
             print(f"Error loading SSL certificates: {e}")
             print("Running without HTTPS. Please check your SSL configuration.")
 
-    app.run(debug=app.config.get('DEBUG', False), host=server_host, port=server_port)
+    app.run(debug=debug_enabled, host=server_host, port=server_port, use_reloader=use_reloader)
 
 if __name__ == '__main__':
     main()

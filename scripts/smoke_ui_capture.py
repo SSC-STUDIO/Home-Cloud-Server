@@ -111,6 +111,7 @@ def main() -> int:
     env.setdefault("SERVER_HOST", DEFAULT_HOST)
     env.setdefault("SERVER_PORT", str(DEFAULT_PORT))
     env.setdefault("APP_CONFIG", "development")
+    env.setdefault("APP_USE_RELOADER", "0")
 
     python_bin = _find_python(repo_root)
 
