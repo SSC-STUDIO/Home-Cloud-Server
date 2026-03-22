@@ -1,0 +1,256 @@
+.admin-shell {
+    display: grid;
+    gap: 1.35rem;
+}
+
+.admin-hero {
+    overflow: hidden;
+    border-radius: 30px;
+    background:
+        linear-gradient(135deg, rgba(7, 17, 31, 0.96), rgba(16, 29, 51, 0.9) 52%, rgba(35, 85, 223, 0.78)),
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.14), transparent 38%);
+    color: #fff;
+    box-shadow: var(--shadow-glow);
+}
+
+.admin-hero .card-body {
+    padding: 1.65rem;
+}
+
+.admin-hero__content {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.admin-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.86rem;
+    border-radius: 999px;
+    border: 1px solid rgba(191, 219, 254, 0.16);
+    background: rgba(191, 219, 254, 0.12);
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.admin-title {
+    margin: 1rem 0 0.55rem;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    line-height: 0.96;
+    max-width: 12ch;
+}
+
+.admin-copy {
+    max-width: 44rem;
+    margin: 0;
+    color: rgba(226, 232, 240, 0.82);
+    line-height: 1.7;
+}
+
+.admin-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: end;
+}
+
+.admin-metric-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.95rem;
+    margin-top: 1.5rem;
+}
+
+.stat-card {
+    position: relative;
+    border-radius: 24px;
+    padding: 1.3rem;
+    margin-bottom: 0;
+    overflow: hidden;
+    box-shadow: var(--shadow-tight);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.stat-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 45%);
+    pointer-events: none;
+}
+
+.stat-card.primary {
+    background: linear-gradient(145deg, #2154d8, #5b8fff);
+}
+
+.stat-card.success {
+    background: linear-gradient(145deg, #13795b, #2fb779);
+}
+
+.stat-card.warning {
+    background: linear-gradient(145deg, #c56b0c, #f2a531);
+}
+
+.stat-card.danger {
+    background: linear-gradient(145deg, #cb3c57, #f36a6d);
+}
+
+.stat-card.info {
+    background: linear-gradient(145deg, #0d7490, #38bdf8);
+}
+
+.stat-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.stat-card .stat-value {
+    position: relative;
+    z-index: 1;
+    margin-top: 1rem;
+    font-size: clamp(1.7rem, 2.6vw, 2.4rem);
+    line-height: 1;
+    font-weight: 700;
+}
+
+.stat-card .stat-title {
+    position: relative;
+    z-index: 1;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.14em;
+    opacity: 0.82;
+}
+
+.stat-card .stat-icon {
+    position: relative;
+    z-index: 1;
+    width: 2.8rem;
+    height: 2.8rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    font-size: 1.2rem;
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+
+.stat-note {
+    position: relative;
+    z-index: 1;
+    margin: 0.8rem 0 0;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.admin-grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 0.88fr) minmax(0, 1.4fr);
+    gap: 1.2rem;
+    align-items: start;
+}
+
+.admin-column {
+    display: grid;
+    gap: 1.2rem;
+}
+
+.admin-panel .card-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.admin-panel-copy {
+    color: var(--muted-color);
+}
+
+.admin-system-list .list-group-item {
+    background: transparent;
+    padding-inline: 0;
+    border-color: rgba(94, 112, 139, 0.12);
+}
+
+.admin-system-list .list-group-item:first-child {
+    padding-top: 0;
+}
+
+.admin-system-list .list-group-item:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.admin-action-stack {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.admin-action-tile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.9rem;
+    align-items: start;
+    padding: 1rem 1.05rem;
+    border-radius: 20px;
+    border: 1px solid rgba(35, 85, 223, 0.1);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(243, 246, 252, 0.9));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+    color: var(--text-color);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-action-tile:hover,
+.admin-action-tile:focus {
+    transform: translateY(-2px);
+    border-color: rgba(35, 85, 223, 0.18);
+    box-shadow: 0 18px 30px rgba(8, 17, 34, 0.08);
+    color: var(--text-color);
+}
+
+.admin-action-tile strong,
+.admin-action-tile small {
+    display: block;
+}
+
+.admin-action-tile strong {
+    font-size: 1rem;
+}
+
+.admin-action-tile small {
+    margin-top: 0.3rem;
+    color: var(--muted-color);
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.admin-action-tile__icon {
+    width: 3rem;
+    height: 3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(35, 85, 223, 0.14), rgba(15, 143, 134, 0.12));
+    color: var(--primary-color);
+}
+
+.admin-chart-shell {
+    padding: 1rem;
+    border-radius: 24px;
+    background:
+        linear-gradient(180deg, rgba(243, 246, 252, 0.92), rgba(255, 255, 255, 0.96));
+    border: 1px solid rgba(94, 112, 139, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
+}

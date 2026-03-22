@@ -3,143 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Home Cloud Server keeps your private files, uploads, transfers, and system controls in one clean workspace.">
+    <meta name="theme-color" content="#0f172a">
     <title>{% block title %}Home Cloud Server{% endblock %}</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Fonts -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    </noscript>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/core.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/files.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     {% block styles %}{% endblock %}
 </head>
-<body>
-    <!-- Top Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-cloud"></i> Home Cloud Server
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    {% if session.get('user_id') %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-user-circle"></i> {{ session.get('username') }}
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}"><i class="fas fa-id-card"></i> Profile</a></li>
-                            {% if session.get('role') == 'admin' %}
-                            <li><a class="dropdown-item" href="{{ url_for('admin.index') }}"><i class="fas fa-cogs"></i> Admin Dashboard</a></li>
-                            {% endif %}
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
-                        </ul>
-                    </li>
-                    {% else %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.login') }}"><i class="fas fa-sign-in-alt"></i> Login</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.register') }}"><i class="fas fa-user-plus"></i> Register</a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </div>
-        </div>
-    </nav>
-    
-    <div class="container-fluid">
-        <div class="row">
-            {% if session.get('user_id') %}
-            <!-- Sidebar Navigation -->
-            <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
-                <div class="position-sticky pt-3">
-                    <ul class="nav flex-column">
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'files.index' %}active{% endif %}" href="{{ url_for('files.index') }}">
-                                <i class="fas fa-folder"></i> My Files
+<body class="{% block body_class %}{% if session.get('user_id') %}app-authenticated{% else %}app-guest{% endif %}{% endblock %}">
+    <a class="skip-link" href="#mainContent">Skip to content</a>
+    <div class="site-shell">
+        <nav class="navbar navbar-expand-lg navbar-dark site-navbar">
+            <div class="container-fluid px-3 px-lg-4">
+                <a class="navbar-brand site-brand" href="{{ url_for('files.index') if session.get('user_id') else url_for('auth.login') }}">
+                    <span class="site-brand-mark">
+                        <i class="fas fa-cloud"></i>
+                    </span>
+                    <span>
+                        <span class="site-brand-title">Home Cloud</span>
+                        <span class="site-brand-subtitle">Private file control</span>
+                    </span>
+                </a>
+                <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
+                        {% if session.get('user_id') %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle user-pill" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user-circle"></i>
+                                <span>{{ session.get('username') }}</span>
                             </a>
+                            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                                <li><a class="dropdown-item" href="{{ url_for('auth.profile') }}"><i class="fas fa-id-card me-2"></i>Profile</a></li>
+                                {% if session.get('role') == 'admin' %}
+                                <li><a class="dropdown-item" href="{{ url_for('admin.index') }}"><i class="fas fa-cogs me-2"></i>Admin Dashboard</a></li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+                            </ul>
+                        </li>
+                        {% else %}
+                        {% set guest_endpoint = request.endpoint or '' %}
+                        {% if guest_endpoint == 'auth.login' %}
+                        <li class="nav-item">
+                            <a class="btn btn-primary btn-sm nav-cta" href="{{ url_for('auth.register') }}">Create account</a>
+                        </li>
+                        {% elif guest_endpoint == 'auth.register' %}
+                        <li class="nav-item">
+                            <a class="btn btn-light btn-sm nav-cta" href="{{ url_for('auth.login') }}">Back to login</a>
+                        </li>
+                        {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'files.trash' %}active{% endif %}" href="{{ url_for('files.trash') }}">
-                                <i class="fas fa-trash-alt"></i> Recycle Bin
-                            </a>
+                            <a class="btn btn-primary btn-sm nav-cta" href="{{ url_for('auth.register') }}">Create account</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'files.transfer_history' %}active{% endif %}" href="{{ url_for('files.transfer_history') }}">
-                                <i class="fas fa-history"></i> Transfer History
-                            </a>
-                        </li>
-                        {% if session.get('role') == 'admin' %}
-                        <li class="nav-header mt-3 text-uppercase opacity-75 small ps-3">Admin</li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'admin.index' %}active{% endif %}" href="{{ url_for('admin.index') }}">
-                                <i class="fas fa-tachometer-alt"></i> Dashboard
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'admin.users' %}active{% endif %}" href="{{ url_for('admin.users') }}">
-                                <i class="fas fa-users"></i> User Management
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'admin.system' %}active{% endif %}" href="{{ url_for('admin.system') }}">
-                                <i class="fas fa-server"></i> System Monitoring
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint == 'admin.settings' %}active{% endif %}" href="{{ url_for('admin.settings') }}">
-                                <i class="fas fa-cog"></i> Settings
-                            </a>
-                        </li>
+                        {% endif %}
                         {% endif %}
                     </ul>
                 </div>
             </div>
-            <!-- Main Content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 content">
-            {% else %}
-            <!-- Main Content (Full width when not logged in) -->
-            <main class="col-12 content">
+        </nav>
+
+        <div class="app-shell">
+            {% if session.get('user_id') %}
+            <aside class="sidebar" id="appSidebar">
+                <div class="sidebar-inner">
+                    <div class="sidebar-label">Workspace</div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'files.index' %}active{% endif %}" href="{{ url_for('files.index') }}">
+                                <i class="fas fa-folder"></i>
+                                <span>My Files</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'files.trash' %}active{% endif %}" href="{{ url_for('files.trash') }}">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Recycle Bin</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'files.transfer_history' %}active{% endif %}" href="{{ url_for('files.transfer_history') }}">
+                                <i class="fas fa-history"></i>
+                                <span>Transfer History</span>
+                            </a>
+                        </li>
+                    </ul>
+
+                    {% if session.get('role') == 'admin' %}
+                    <div class="sidebar-label mt-4">Admin</div>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.index' %}active{% endif %}" href="{{ url_for('admin.index') }}">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span>Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.users' %}active{% endif %}" href="{{ url_for('admin.users') }}">
+                                <i class="fas fa-users"></i>
+                                <span>User Management</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.system' %}active{% endif %}" href="{{ url_for('admin.system') }}">
+                                <i class="fas fa-server"></i>
+                                <span>System Monitoring</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.settings' %}active{% endif %}" href="{{ url_for('admin.settings') }}">
+                                <i class="fas fa-cog"></i>
+                                <span>Settings</span>
+                            </a>
+                        </li>
+                    </ul>
+                    {% endif %}
+                </div>
+            </aside>
             {% endif %}
-                <!-- Flash Messages -->
+
+            <main class="content {% if not session.get('user_id') %}content-full{% endif %}" id="mainContent">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                     {% if messages %}
+                    <div class="flash-stack">
                         {% for category, message in messages %}
-                            <div class="alert alert-{{ category }} alert-dismissible fade show mt-3">
-                                {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            <div class="flash-message-body">
+                                <i class="fas fa-circle-info me-2"></i>
+                                <span>{{ message }}</span>
                             </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
                         {% endfor %}
+                    </div>
                     {% endif %}
                 {% endwith %}
-                
-                <!-- Page Content -->
+
                 {% block content %}{% endblock %}
             </main>
         </div>
+
+        <footer class="footer">
+            <div class="container-fluid px-3 px-lg-4 footer-content">
+                <span>&copy; {{ now().year }} Home Cloud Server</span>
+                <span>Version {{ app_version }}</span>
+            </div>
+        </footer>
     </div>
-    
-    <!-- Footer -->
-    <footer class="footer mt-auto py-3">
-        <div class="container">
-            <span>&copy; {{ now().year }} Home Cloud Server. All rights reserved.</span>
-            <span class="ms-3">Version: {{ app_version }}</span>
-        </div>
-    </footer>
-    
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- Chart.js for statistics -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Custom Scripts -->
+
+    <script defer src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script defer src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

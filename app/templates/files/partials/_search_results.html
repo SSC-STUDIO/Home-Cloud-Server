@@ -1,0 +1,117 @@
+{% set show_open_full_page = true if show_open_full_page is not defined else show_open_full_page %}
+<div class="card workspace-card search-results-card">
+    <div class="workspace-card__header">
+        <div class="workspace-card__title">
+            <div>
+                <h2>Search Results</h2>
+                <p>{{ total_count }} item(s) found for "{{ query }}".</p>
+            </div>
+        </div>
+        {% if show_open_full_page %}
+        <div class="workspace-batch-actions">
+            <a href="{{ url_for('files.search_files', query=query) }}" class="btn btn-light">
+                <i class="fas fa-arrow-up-right-from-square me-2"></i>Open Full Page
+            </a>
+        </div>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        {% if not files and not folders %}
+        <div class="empty-state empty-state-compact">
+            <div class="empty-state__icon"><i class="fas fa-magnifying-glass"></i></div>
+            <h3>No results found</h3>
+            <p>Try another keyword, or go back to the current workspace list.</p>
+        </div>
+        {% else %}
+        <div class="workspace-table-wrap">
+            <div class="filter-status">{{ total_count }} matching item(s)</div>
+            <div class="workspace-table table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Location</th>
+                            <th>Size</th>
+                            <th>Type</th>
+                            <th>Modified</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for folder in folders %}
+                        <tr>
+                            <td>
+                                <div class="item-name">
+                                    <span class="item-icon folder">
+                                        <i class="fas fa-folder"></i>
+                                    </span>
+                                    <div class="item-primary">
+                                        <a href="{{ url_for('files.index', folder_id=folder.id) }}" class="item-title search-match-target">{{ folder.name }}</a>
+                                        <div class="item-subtitle">Folder match</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ folder.parent.name if folder.parent else 'Root' }}</td>
+                            <td>-</td>
+                            <td><span class="table-chip"><i class="fas fa-folder"></i>Folder</span></td>
+                            <td>{{ folder.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="text-end">
+                                <a href="{{ url_for('files.index', folder_id=folder.id) }}" class="btn btn-light btn-icon" aria-label="Open folder {{ folder.name }}">
+                                    <i class="fas fa-folder-open"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% for file in files %}
+                        <tr>
+                            <td>
+                                <div class="item-name">
+                                    <span class="item-icon {{ file.file_type or 'other' }}">
+                                        {% if file.file_type == 'image' %}
+                                        <i class="fas fa-file-image"></i>
+                                        {% elif file.file_type == 'video' %}
+                                        <i class="fas fa-file-video"></i>
+                                        {% elif file.file_type == 'audio' %}
+                                        <i class="fas fa-file-audio"></i>
+                                        {% elif file.file_type == 'document' %}
+                                        <i class="fas fa-file-lines"></i>
+                                        {% elif file.file_type == 'archive' %}
+                                        <i class="fas fa-file-zipper"></i>
+                                        {% else %}
+                                        <i class="fas fa-file"></i>
+                                        {% endif %}
+                                    </span>
+                                    <div class="item-primary">
+                                        <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="item-title search-match-target">{{ file.original_filename }}</a>
+                                        <div class="item-subtitle">File match</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ file.folder.name if file.folder else 'Root' }}</td>
+                            <td>{{ (file.size / (1024 * 1024))|round(2) }} MB</td>
+                            <td><span class="table-chip"><i class="fas fa-tag"></i>{{ file.file_type|capitalize }}</span></td>
+                            <td>{{ file.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td class="text-end">
+                                <div class="item-actions justify-content-end">
+                                    <a href="{{ url_for('files.preview_file', file_id=file.id) }}" class="btn btn-light btn-icon" aria-label="Preview file {{ file.original_filename }}">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="btn btn-light btn-icon" aria-label="Download file {{ file.original_filename }}">
+                                        <i class="fas fa-download"></i>
+                                    </a>
+                                    {% if file.folder_id %}
+                                    <a href="{{ url_for('files.index', folder_id=file.folder_id) }}" class="btn btn-light btn-icon" aria-label="Open parent folder for {{ file.original_filename }}">
+                                        <i class="fas fa-folder-open"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>

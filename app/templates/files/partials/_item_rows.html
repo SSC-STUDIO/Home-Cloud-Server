@@ -1,0 +1,98 @@
+{% macro render_folder_row(folder) -%}
+<tr data-kind="folder" data-item-id="{{ folder.id }}" data-name="{{ folder.name|lower }}" data-type="folder" data-size-bytes="0" data-updated="{{ folder.updated_at.isoformat() }}">
+    <td class="item-checkbox" data-label="Select">
+        <input class="form-check-input item-select" type="checkbox" value="folder-{{ folder.id }}" id="folder-{{ folder.id }}" name="selected_items[]" aria-label="Select folder {{ folder.name }}">
+    </td>
+    <td class="name-cell" data-label="Name">
+        <div class="item-name">
+            <span class="item-icon folder">
+                <i class="fas fa-folder"></i>
+            </span>
+            <div class="item-primary">
+                <div class="item-title-row">
+                    <a href="{{ url_for('files.index', folder_id=folder.id) }}" class="item-title">{{ folder.name }}</a>
+                    <span class="item-inline-badge">Folder</span>
+                </div>
+                <div class="item-subtitle">Folder ready for navigation and batch operations.</div>
+            </div>
+        </div>
+    </td>
+    <td data-label="Size">-</td>
+    <td data-label="Type">
+        <span class="table-chip">
+            <i class="fas fa-folder"></i>Folder
+        </span>
+    </td>
+    <td data-label="Modified">{{ folder.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td class="actions-cell text-end" data-label="Actions">
+        <div class="item-actions">
+            <button type="button" class="btn btn-light btn-icon download-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}" aria-label="Download folder {{ folder.name }}">
+                <i class="fas fa-download"></i>
+            </button>
+            <button type="button" class="btn btn-light btn-icon rename-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}" aria-label="Rename folder {{ folder.name }}">
+                <i class="fas fa-pen"></i>
+            </button>
+            <button type="button" class="btn btn-danger btn-icon delete-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}" aria-label="Delete folder {{ folder.name }}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </td>
+</tr>
+{%- endmacro %}
+
+{% macro render_file_row(file) -%}
+{% set file_icon = 'file' %}
+{% if file.file_type == 'image' %}
+    {% set file_icon = 'file-image' %}
+{% elif file.file_type == 'video' %}
+    {% set file_icon = 'file-video' %}
+{% elif file.file_type == 'audio' %}
+    {% set file_icon = 'file-audio' %}
+{% elif file.file_type == 'document' %}
+    {% set file_icon = 'file-lines' %}
+{% elif file.file_type == 'archive' %}
+    {% set file_icon = 'file-zipper' %}
+{% endif %}
+<tr data-kind="file" data-item-id="{{ file.id }}" data-name="{{ file.original_filename|lower }}" data-type="{{ file.file_type|lower }}" data-size-bytes="{{ file.size }}" data-updated="{{ file.updated_at.isoformat() }}">
+    <td class="item-checkbox" data-label="Select">
+        <input class="form-check-input item-select" type="checkbox" value="file-{{ file.id }}" id="file-{{ file.id }}" name="selected_items[]" aria-label="Select file {{ file.original_filename }}">
+    </td>
+    <td class="name-cell" data-label="Name">
+        <div class="item-name">
+            <span class="item-icon {{ file.file_type or 'other' }}">
+                <i class="fas fa-{{ file_icon }}"></i>
+            </span>
+            <div class="item-primary">
+                <div class="item-title-row">
+                    <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="item-title">{{ file.original_filename }}</a>
+                    <span class="item-inline-badge">{{ file.file_type|capitalize }}</span>
+                </div>
+                <div class="item-subtitle">Ready for preview, download, or rename.</div>
+            </div>
+        </div>
+    </td>
+    <td data-label="Size">{{ (file.size / (1024 * 1024))|round(2) }} MB</td>
+    <td data-label="Type">
+        <span class="table-chip">
+            <i class="fas fa-tag"></i>{{ file.file_type|capitalize }}
+        </span>
+    </td>
+    <td data-label="Modified">{{ file.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+    <td class="actions-cell text-end" data-label="Actions">
+        <div class="item-actions">
+            <a href="{{ url_for('files.preview_file', file_id=file.id) }}" class="btn btn-light btn-icon" aria-label="Preview file {{ file.original_filename }}">
+                <i class="fas fa-eye"></i>
+            </a>
+            <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="btn btn-light btn-icon" aria-label="Download file {{ file.original_filename }}">
+                <i class="fas fa-download"></i>
+            </a>
+            <button type="button" class="btn btn-light btn-icon rename-file" data-file-id="{{ file.id }}" data-file-name="{{ file.original_filename }}" aria-label="Rename file {{ file.original_filename }}">
+                <i class="fas fa-pen"></i>
+            </button>
+            <button type="button" class="btn btn-danger btn-icon delete-file" data-file-id="{{ file.id }}" data-file-name="{{ file.original_filename }}" aria-label="Delete file {{ file.original_filename }}">
+                <i class="fas fa-trash"></i>
+            </button>
+        </div>
+    </td>
+</tr>
+{%- endmacro %}

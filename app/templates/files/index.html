@@ -1,797 +1,215 @@
 {% extends 'base.html' %}
-
 {% block title %}My Files - Home Cloud Server{% endblock %}
 
+{% block body_class %}{{ super() }} files-page{% endblock %}
+
 {% block content %}
-<div class="container-fluid">
-    <!-- Breadcrumb and Actions Row -->
-    <div class="row mb-3">
-        <div class="col-md-8">
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('files.index') }}"><i class="fas fa-home"></i> Home</a></li>
-                    {% if current_folder.parent_id is not none %}
-                        <li class="breadcrumb-item"><a href="{{ url_for('files.index') }}">{{ current_folder.name }}</a></li>
-                        <!-- Add more breadcrumb items here for nested folders -->
-                    {% endif %}
-                </ol>
-            </nav>
-        </div>
-        <div class="col-md-4 text-end">
-            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal">
-                <i class="fas fa-upload me-1"></i> Upload
-            </button>
-            <button type="button" class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#newFolderModal">
-                <i class="fas fa-folder-plus me-1"></i> New Folder
-            </button>
-            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#remoteDownloadModal">
-                <i class="fas fa-link me-1"></i> Remote Download
-            </button>
-        </div>
-    </div>
-    
-    <!-- Storage Stats Row -->
-    <div class="row mb-3">
-        <div class="col-md-12">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-9">
-                            <h5 class="card-title"><i class="fas fa-hdd me-2"></i>Storage Usage</h5>
-                            <div class="progress" style="height: 20px;">
-                                <div class="progress-bar {% if storage_percent > 90 %}bg-danger{% elif storage_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
-                                     role="progressbar" 
-                                     style="width: {{ storage_percent }}%;" 
-                                     aria-valuenow="{{ storage_percent }}" 
-                                     aria-valuemin="0" 
-                                     aria-valuemax="100">
-                                    {{ storage_percent|round(1) }}%
-                                </div>
-                            </div>
-                            <small class="text-muted">{{ (storage_used / (1024*1024*1024))|round(2) }} GB of {{ (storage_quota / (1024*1024*1024))|round(2) }} GB used</small>
+{% set folder_label = 'My Files' if current_folder.parent_id is none else current_folder.name %}
+<div class="files-workspace" id="filesWorkspace" data-upload-url="{{ url_for('files.upload_file') }}" data-search-url="{{ url_for('files.search_files') }}" data-delete-file-url-template="{{ url_for('files.delete_file', file_id=0) }}" data-delete-folder-url-template="{{ url_for('files.delete_folder', folder_id=0) }}" data-rename-file-url-template="{{ url_for('files.rename_file', file_id=0) }}" data-rename-folder-url-template="{{ url_for('files.rename_folder', folder_id=0) }}" data-download-folder-url-template="{{ url_for('files.download_folder', folder_id=0) }}" data-batch-delete-url="{{ url_for('files.batch_delete') }}">
+    <section class="workspace-hero card border-0">
+        <div class="card-body">
+            <div class="workspace-hero__top">
+                <div>
+                    <span class="workspace-kicker"><i class="fas fa-cloud"></i><span>Private file workspace</span></span>
+                    <h1 class="workspace-title">{{ folder_label }}</h1>
+                    <p class="workspace-subtitle">Upload, organize, and review files from the current folder without losing the larger library context.</p>
+                    <div class="folder-breadcrumb" aria-label="Breadcrumb">
+                        <a href="{{ url_for('files.index') }}"><i class="fas fa-house"></i> Home</a>
+                        {% if parent_folder %}<span class="divider">/</span><a href="{{ url_for('files.index', folder_id=parent_folder.id) }}">{{ parent_folder.name }}</a>{% endif %}
+                        {% if current_folder.parent_id is not none %}<span class="divider">/</span><span>{{ current_folder.name }}</span>{% endif %}
+                    </div>
+                </div>
+                <div class="workspace-actions">
+                    <button type="button" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#uploadModal"><i class="fas fa-upload me-2"></i>Upload</button>
+                    <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i class="fas fa-folder-plus me-2"></i>New Folder</button>
+                    <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#remoteDownloadModal"><i class="fas fa-link me-2"></i>Remote Download</button>
+                </div>
+            </div>
+            <div class="workspace-metrics">
+                <div class="storage-panel">
+                    <span class="storage-label">Storage usage</span>
+                    <span class="storage-value" id="storageUsageValue">{{ (storage_used / (1024 * 1024 * 1024))|round(2) }} GB / {{ (storage_quota / (1024 * 1024 * 1024))|round(2) }} GB</span>
+                    <span class="storage-note" id="storageUsageNote">{{ storage_percent|round(1) }}% of your quota is currently in use.</span>
+                    <div class="storage-meter">
+                        <div class="progress">
+                            <div class="progress-bar {% if storage_percent > 90 %}bg-danger{% elif storage_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" id="storageUsageBar" role="progressbar" style="width: {{ storage_percent }}%;" aria-valuenow="{{ storage_percent }}" aria-valuemin="0" aria-valuemax="100">{{ storage_percent|round(1) }}%</div>
                         </div>
-                        <div class="col-md-3 text-end">
-                            <form action="{{ url_for('files.search_files') }}" method="GET" class="search-form">
-                                <div class="input-group">
-                                    <input type="text" name="query" class="form-control" placeholder="Search files...">
-                                    <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
-                                </div>
-                            </form>
-                        </div>
+                    </div>
+                </div>
+                <div class="metric-panel"><span class="metric-label">Folders</span><span class="metric-value" id="folderCountMetric">{{ subfolders|length }}</span><span class="metric-note">Active subfolders in this location.</span></div>
+                <div class="metric-panel"><span class="metric-label">Files</span><span class="metric-value" id="fileCountMetric">{{ files|length }}</span><span class="metric-note">Items ready for preview or download.</span></div>
+                <div class="metric-panel"><span class="metric-label">Visible items</span><span class="metric-value" id="visibleCountMetric">{{ (subfolders|length) + (files|length) }}</span><span class="metric-note">Everything currently listed in this folder.</span></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="workspace-toolbar">
+        <div class="workspace-toolbar__block workspace-toolbar__block--search">
+            <div class="workspace-toolbar__heading">
+                <span class="workspace-toolbar__eyebrow">Search library</span>
+                <strong>Find a file anywhere in your storage.</strong>
+            </div>
+            <form action="{{ url_for('files.search_files') }}" method="GET" class="search-form" id="workspaceSearchForm">
+                <div class="input-group">
+                    <span class="input-group-text" id="workspaceSearchIcon"><i class="fas fa-search"></i></span>
+                    <input type="text" name="query" class="form-control" id="workspaceSearchInput" placeholder="Search files, documents, and media">
+                    <button class="btn btn-primary" type="submit">Search</button>
+                </div>
+            </form>
+            <span class="workspace-toolbar__hint">This searches the full library. The filters below only affect the current list.</span>
+        </div>
+        <div class="workspace-toolbar__block workspace-toolbar__block--filters">
+            <div class="workspace-toolbar__heading">
+                <span class="workspace-toolbar__eyebrow">Filter current folder</span>
+                <strong>Only changes the table below.</strong>
+            </div>
+            <div class="workspace-local-tools">
+                <div class="input-group workspace-inline-filter">
+                    <span class="input-group-text"><i class="fas fa-filter"></i></span>
+                    <input type="text" class="form-control" id="clientFilterInput" placeholder="Filter visible items">
+                </div>
+                <select class="form-select workspace-select" id="typeFilterSelect" aria-label="Filter by item type">
+                    <option value="all">All items</option>
+                    <option value="folder">Folders</option>
+                    <option value="file">Files only</option>
+                    <option value="image">Images</option>
+                    <option value="video">Videos</option>
+                    <option value="audio">Audio</option>
+                    <option value="document">Documents</option>
+                    <option value="archive">Archives</option>
+                    <option value="other">Other files</option>
+                </select>
+                <select class="form-select workspace-select" id="sortSelect" aria-label="Sort items">
+                    <option value="name-asc">Name A-Z</option>
+                    <option value="name-desc">Name Z-A</option>
+                    <option value="updated-desc">Newest first</option>
+                    <option value="updated-asc">Oldest first</option>
+                    <option value="size-desc">Largest first</option>
+                    <option value="size-asc">Smallest first</option>
+                    <option value="type-asc">Type A-Z</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary d-none" id="recentUploadsFilterBtn" aria-pressed="false">
+                    <i class="fas fa-sparkles me-2"></i>Recent uploads
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="clearFiltersBtn">
+                    <i class="fas fa-rotate-left me-2"></i>Clear
+                </button>
+            </div>
+            <div class="workspace-active-filters d-none" id="workspaceActiveFilters" aria-live="polite"></div>
+        </div>
+        <div class="workspace-toolbar__block workspace-toolbar__block--view">
+            <div class="workspace-toolbar__heading">
+                <span class="workspace-toolbar__eyebrow">View</span>
+                <strong>Switch how the current folder is displayed.</strong>
+            </div>
+            <div class="workspace-toggle" role="group" aria-label="Layout switcher">
+                <button type="button" class="btn btn-light btn-icon" id="view-grid" aria-label="Grid view"><i class="fas fa-th-large"></i></button>
+                <button type="button" class="btn btn-light btn-icon active" id="view-list" aria-label="List view"><i class="fas fa-list"></i></button>
+            </div>
+        </div>
+    </section>
+
+    <section class="workspace-feedback d-none" id="workspaceFeedback" aria-live="polite">
+        <div class="workspace-feedback__icon" aria-hidden="true">
+            <i class="fas fa-circle-info" id="workspaceFeedbackIcon"></i>
+        </div>
+        <div class="workspace-feedback__content">
+            <strong class="workspace-feedback__title" id="workspaceFeedbackTitle"></strong>
+            <p class="workspace-feedback__message" id="workspaceFeedbackMessage"></p>
+            <div class="workspace-feedback__actions d-none" id="workspaceFeedbackActions">
+                <button type="button" class="btn btn-sm btn-outline-secondary workspace-chip-btn" id="focusRecentUploadsBtn">
+                    <i class="fas fa-sparkles me-2"></i>Focus recent
+                </button>
+                <button type="button" class="btn btn-sm btn-light" id="clearRecentUploadsBtn">
+                    <i class="fas fa-xmark me-2"></i>Clear recent
+                </button>
+            </div>
+        </div>
+        <button type="button" class="btn btn-link workspace-feedback__dismiss" id="dismissWorkspaceFeedback" aria-label="Dismiss status">
+            <i class="fas fa-xmark"></i>
+        </button>
+    </section>
+
+    <section class="search-results-shell d-none" id="searchResultsShell">
+        <div class="search-results-shell__actions">
+            <span class="selection-status" id="searchResultsLabel">Search results</span>
+            <button type="button" class="btn btn-outline-secondary" id="clearSearchResultsBtn">
+                <i class="fas fa-arrow-left me-2"></i>Back to workspace
+            </button>
+        </div>
+        <div id="searchResultsContainer"></div>
+    </section>
+
+    <section class="card workspace-card">
+            <div class="workspace-card__header">
+                <div class="workspace-card__title">
+                    {% if parent_folder %}<a href="{{ url_for('files.index', folder_id=parent_folder.id) }}" class="btn btn-light btn-icon" aria-label="Go back"><i class="fas fa-arrow-left"></i></a>{% endif %}
+                <div>
+                    <h2>Contents</h2>
+                    <p>Use row actions for single items. Use selection tools only for the items currently visible in this folder.</p>
+                </div>
+            </div>
+            <div class="workspace-batch-actions">
+                <div class="workspace-batch-controls {% if not subfolders and not files %}d-none{% endif %}" id="workspaceBulkControls">
+                    <span class="selection-status" id="selectionStatus">{{ (subfolders|length) + (files|length) }} items available</span>
+                    <button type="button" class="btn btn-outline-secondary" id="selectAllBtn"><i class="fas fa-check-square me-2"></i>Select visible</button>
+                    <div class="d-none workspace-batch-actions" id="batchActionsGroup">
+                        <button type="button" class="btn btn-primary" id="moveSelectedBtn"><i class="fas fa-folder-tree me-2"></i>Move selected</button>
+                        <button type="button" class="btn btn-danger" id="deleteSelectedBtn"><i class="fas fa-trash me-2"></i>Delete selected</button>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    
-    <!-- Files and Folders Row -->
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <div class="row">
-                        <div class="col-6">
-                            <h5 class="mb-0">
-                                {% if parent_folder %}
-                                <a href="{{ url_for('files.index', folder_id=parent_folder.id) }}" class="btn btn-sm btn-light me-2">
-                                    <i class="fas fa-arrow-left"></i> Back
-                                </a>
-                                {% endif %}
-                                {{ current_folder.name }}
-                            </h5>
-                        </div>
-                        <div class="col-6 text-end">
-                            {% if subfolders or files %}
-                            <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="selectAllBtn">
-                                <i class="fas fa-check-square me-1"></i> Select All
-                            </button>
-                            <div class="btn-group btn-group-sm d-none" id="batchActionsGroup">
-                                <button type="button" class="btn btn-primary" id="moveSelectedBtn">
-                                    <i class="fas fa-folder-open me-1"></i> Move Selected
-                                </button>
-                                <button type="button" class="btn btn-danger" id="deleteSelectedBtn">
-                                    <i class="fas fa-trash me-1"></i> Delete Selected
-                                </button>
-                            </div>
-                            {% endif %}
-                            <div class="btn-group btn-group-sm" role="group">
-                                <button type="button" class="btn btn-light" id="view-grid">
-                                    <i class="fas fa-th"></i>
-                                </button>
-                                <button type="button" class="btn btn-light active" id="view-list">
-                                    <i class="fas fa-list"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    {% if not subfolders and not files %}
-                    <div class="text-center p-5">
-                        <i class="fas fa-folder-open fa-4x mb-3 text-muted"></i>
-                        <h5>This folder is empty</h5>
-                        <p class="text-muted">Upload files or create folders to get started.</p>
-                    </div>
-                    {% else %}
-                    <form id="batchOperationsForm" method="POST" action="">
-                        <input type="hidden" name="batch_action" id="batchAction" value="">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 40px;"><input type="checkbox" class="form-check-input" id="selectAllCheckbox"></th>
-                                        <th style="width: 50%">Name</th>
-                                        <th>Size</th>
-                                        <th>Type</th>
-                                        <th>Modified</th>
-                                        <th class="text-end">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <!-- Folders First -->
-                                    {% for folder in subfolders %}
-                                    <tr>
-                                        <td>
-                                            <input class="form-check-input item-select" 
-                                                  type="checkbox" 
-                                                  value="folder-{{ folder.id }}" 
-                                                  id="folder-{{ folder.id }}"
-                                                  name="selected_items[]">
-                                        </td>
-                                        <td>
-                                            <a href="{{ url_for('files.index', folder_id=folder.id) }}" class="text-decoration-none">
-                                                <i class="fas fa-folder text-warning me-2"></i> {{ folder.name }}
-                                            </a>
-                                        </td>
-                                        <td>-</td>
-                                        <td>Folder</td>
-                                        <td>{{ folder.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                        <td class="text-end">
-                                            <div class="btn-group btn-group-sm">
-                                                <button type="button" class="btn btn-light download-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}">
-                                                    <i class="fas fa-download"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-light rename-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-danger delete-folder" data-folder-id="{{ folder.id }}" data-folder-name="{{ folder.name }}">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                    
-                                    <!-- Then Files -->
-                                    {% for file in files %}
-                                    <tr>
-                                        <td>
-                                            <input class="form-check-input item-select" 
-                                                  type="checkbox" 
-                                                  value="file-{{ file.id }}" 
-                                                  id="file-{{ file.id }}"
-                                                  name="selected_items[]">
-                                        </td>
-                                        <td>
-                                            <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="text-decoration-none">
-                                                {% if file.file_type == 'image' %}
-                                                <i class="fas fa-file-image text-info me-2"></i>
-                                                {% elif file.file_type == 'video' %}
-                                                <i class="fas fa-file-video text-danger me-2"></i>
-                                                {% elif file.file_type == 'audio' %}
-                                                <i class="fas fa-file-audio text-success me-2"></i>
-                                                {% elif file.file_type == 'document' %}
-                                                <i class="fas fa-file-alt text-primary me-2"></i>
-                                                {% elif file.file_type == 'archive' %}
-                                                <i class="fas fa-file-archive text-secondary me-2"></i>
-                                                {% else %}
-                                                <i class="fas fa-file text-muted me-2"></i>
-                                                {% endif %}
-                                                {{ file.original_filename }}
-                                            </a>
-                                        </td>
-                                        <td>{{ (file.size / (1024*1024))|round(2) }} MB</td>
-                                        <td>{{ file.file_type|capitalize }}</td>
-                                        <td>{{ file.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-                                        <td class="text-end">
-                                            <div class="btn-group btn-group-sm">
-                                                <a href="{{ url_for('files.preview_file', file_id=file.id) }}" class="btn btn-light">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                                <a href="{{ url_for('files.download_file', file_id=file.id) }}" class="btn btn-light">
-                                                    <i class="fas fa-download"></i>
-                                                </a>
-                                                <button type="button" class="btn btn-light rename-file" data-file-id="{{ file.id }}" data-file-name="{{ file.original_filename }}">
-                                                    <i class="fas fa-edit"></i>
-                                                </button>
-                                                <button type="button" class="btn btn-danger delete-file" data-file-id="{{ file.id }}" data-file-name="{{ file.original_filename }}">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </form>
-                    {% endif %}
+        <div class="card-body">
+            <div class="empty-state{% if subfolders or files %} d-none{% endif %}" id="workspaceEmptyState">
+                <div class="empty-state__icon"><i class="fas fa-folder-open"></i></div>
+                <h3>This folder is empty</h3>
+                <p>Start with an upload, create a new folder, or pull content in from a remote URL.</p>
+                <div class="workspace-actions justify-content-center">
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#uploadModal"><i class="fas fa-upload me-2"></i>Upload files</button>
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i class="fas fa-folder-plus me-2"></i>Create folder</button>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
-
-<!-- Upload Modal -->
-<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="false">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="uploadModalLabel"><i class="fas fa-upload me-2"></i>Upload Files</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ url_for('files.upload_file') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
-                    <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
-                    
-                    <ul class="nav nav-tabs mb-3" id="uploadTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="files-tab" data-bs-toggle="tab" data-bs-target="#files-pane" type="button" role="tab" aria-controls="files-pane" aria-selected="true">Files</button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="folder-tab" data-bs-toggle="tab" data-bs-target="#folder-pane" type="button" role="tab" aria-controls="folder-pane" aria-selected="false">Folder</button>
-                        </li>
-                    </ul>
-                    
-                    <div class="tab-content" id="uploadTabContent">
-                        <div class="tab-pane fade show active" id="files-pane" role="tabpanel" aria-labelledby="files-tab">
-                            <div class="mb-3">
-                                <label for="files" class="form-label">Select Files</label>
-                                <input type="file" class="form-control" id="files" name="files[]" multiple>
-                                <div class="form-text">Select multiple files to upload</div>
-                            </div>
-                        </div>
-                        <div class="tab-pane fade" id="folder-pane" role="tabpanel" aria-labelledby="folder-tab">
-                            <div class="mb-3">
-                                <label for="folder" class="form-label">Select Folder</label>
-                                <input type="file" class="form-control" id="folder" name="files[]" webkitdirectory directory multiple>
-                                <input type="hidden" name="is_folder_upload" value="true">
-                                <div class="form-text">Select a folder to upload all its contents</div>
+            <form id="batchOperationsForm" method="POST" action=""{% if not subfolders and not files %} class="d-none"{% endif %}>
+                <input type="hidden" name="batch_action" id="batchAction" value="">
+                <div class="workspace-table-wrap">
+                    <div class="filter-status" id="filterStatus">Showing {{ (subfolders|length) + (files|length) }} item(s) in this folder</div>
+                    <div class="filter-empty-state d-none" id="filterEmptyState">
+                        <div class="empty-state empty-state-compact">
+                            <div class="empty-state__icon"><i class="fas fa-magnifying-glass"></i></div>
+                            <h3>No items match these filters</h3>
+                            <p>Try a different keyword, switch item type, or clear the current filters.</p>
+                            <div class="workspace-actions justify-content-center">
+                                <button type="button" class="btn btn-outline-primary" id="clearFiltersEmptyBtn">
+                                    <i class="fas fa-rotate-left me-2"></i>Clear filters
+                                </button>
                             </div>
                         </div>
                     </div>
-                    
-                    <div id="uploadingFiles" class="d-none">
-                        <div class="mb-3">
-                            <div class="small mb-1 d-flex justify-content-between">
-                                <span id="currentFileName">Uploading...</span>
-                                <span id="uploadSpeed">0 KB/s</span>
-                            </div>
-                            <div class="progress mb-2">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="fileProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <div class="small mb-1 d-flex justify-content-between">
-                                <span>Total Progress</span>
-                                <span id="uploadedCount">0/0 files</span>
-                            </div>
-                            <div class="progress">
-                                <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" id="totalProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
-                            </div>
-                        </div>
+                    <div class="workspace-table table-responsive">
+                        <table class="table table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th class="item-checkbox"><input type="checkbox" class="form-check-input" id="selectAllCheckbox" aria-label="Select all items"></th>
+                                    <th>Name</th>
+                                    <th>Size</th>
+                                    <th>Type</th>
+                                    <th>Modified</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="workspaceTableBody">{% include 'files/partials/_table_rows.html' %}</tbody>
+                        </table>
                     </div>
-                    
-                    <div class="d-grid mt-3">
-                        <button type="submit" class="btn btn-primary" id="uploadButton">Upload</button>
-                    </div>
-                </form>
-            </div>
+                </div>
+            </form>
         </div>
-    </div>
+    </section>
 </div>
 
-<!-- New Folder Modal -->
-<div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="newFolderModalLabel"><i class="fas fa-folder-plus me-2"></i>New Folder</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ url_for('files.create_folder') }}" method="POST">
-                    <input type="hidden" name="parent_id" value="{{ current_folder.id }}">
-                    <div class="mb-3">
-                        <label for="folder_name" class="form-label">Folder Name</label>
-                        <input type="text" class="form-control" id="folder_name" name="folder_name" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Create Folder</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Delete File Modal -->
-<div class="modal fade" id="deleteFileModal" tabindex="-1" aria-labelledby="deleteFileModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteFileModalLabel"><i class="fas fa-trash me-2"></i>Delete File</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
-                <p class="text-danger">This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteFileForm" action="" method="POST">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Folder Modal -->
-<div class="modal fade" id="deleteFolderModal" tabindex="-1" aria-labelledby="deleteFolderModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="deleteFolderModalLabel"><i class="fas fa-trash me-2"></i>Delete Folder</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete folder <strong id="deleteFolderName"></strong>?</p>
-                <p class="text-danger">All files and subfolders inside will also be deleted. This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form id="deleteFolderForm" action="" method="POST">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Rename File Modal -->
-<div class="modal fade" id="renameFileModal" tabindex="-1" aria-labelledby="renameFileModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="renameFileModalLabel"><i class="fas fa-edit me-2"></i>Rename File</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="renameFileForm" action="" method="POST">
-                    <div class="mb-3">
-                        <label for="new_name" class="form-label">New Name</label>
-                        <input type="text" class="form-control" id="newFileName" name="new_name" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Rename</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Rename Folder Modal -->
-<div class="modal fade" id="renameFolderModal" tabindex="-1" aria-labelledby="renameFolderModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="renameFolderModalLabel"><i class="fas fa-edit me-2"></i>Rename Folder</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="renameFolderForm" action="" method="POST">
-                    <div class="mb-3">
-                        <label for="new_name" class="form-label">New Name</label>
-                        <input type="text" class="form-control" id="newFolderName" name="new_name" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Rename</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Move Items Modal -->
-<div class="modal fade" id="moveModal" tabindex="-1" aria-labelledby="moveModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="moveModalLabel"><i class="fas fa-folder-open me-2"></i>Move Items</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="moveForm" method="POST" action="{{ url_for('files.batch_move') }}">
-                    <div class="mb-3">
-                        <label for="destinationSelect" class="form-label">Select Destination Folder</label>
-                        <select class="form-select" id="destinationSelect" name="destination_id" required>
-                            {% for folder in all_folders %}
-                                <option value="{{ folder.id }}">{{ folder.name }}{% if folder.parent_id %} (ID: {{ folder.id }}){% endif %}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div id="selectedItemsContainer"></div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Move</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Remote Download Modal -->
-<div class="modal fade" id="remoteDownloadModal" tabindex="-1" aria-labelledby="remoteDownloadModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="remoteDownloadModalLabel"><i class="fas fa-link me-2"></i>Download from URL</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form action="{{ url_for('files.remote_download') }}" method="POST">
-                    <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
-                    <div class="mb-3">
-                        <label for="file_url" class="form-label">File URL</label>
-                        <input type="url" class="form-control" id="file_url" name="file_url" placeholder="https://example.com/file.zip" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-primary">Download</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-<!-- Error Modal -->
-<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="errorModalTitle">错误</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body" id="errorModalBody">
-        出现未知错误。
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
-      </div>
-    </div>
-  </div>
-</div>
+{% include 'files/partials/_modals.html' %}
 {% endblock %}
 
 {% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Delete file
-        const deleteFileModal = document.getElementById('deleteFileModal');
-        const deleteFileButtons = document.querySelectorAll('.delete-file');
-        
-        deleteFileButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const fileId = this.getAttribute('data-file-id');
-                const fileName = this.getAttribute('data-file-name');
-                
-                document.getElementById('deleteFileName').textContent = fileName;
-                document.getElementById('deleteFileForm').action = "{{ url_for('files.delete_file', file_id=0) }}".replace('0', fileId);
-                
-                // Show modal
-                const modal = new bootstrap.Modal(deleteFileModal);
-                modal.show();
-            });
-        });
-        
-        // Delete folder
-        const deleteFolderModal = document.getElementById('deleteFolderModal');
-        const deleteFolderButtons = document.querySelectorAll('.delete-folder');
-        
-        deleteFolderButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const folderId = this.getAttribute('data-folder-id');
-                const folderName = this.getAttribute('data-folder-name');
-                
-                document.getElementById('deleteFolderName').textContent = folderName;
-                document.getElementById('deleteFolderForm').action = "{{ url_for('files.delete_folder', folder_id=0) }}".replace('0', folderId);
-                
-                // Show modal
-                const modal = new bootstrap.Modal(deleteFolderModal);
-                modal.show();
-            });
-        });
-        
-        // Rename file
-        const renameFileModal = document.getElementById('renameFileModal');
-        const renameFileButtons = document.querySelectorAll('.rename-file');
-        
-        renameFileButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const fileId = this.getAttribute('data-file-id');
-                const fileName = this.getAttribute('data-file-name');
-                
-                document.getElementById('newFileName').value = fileName;
-                document.getElementById('renameFileForm').action = "{{ url_for('files.rename_file', file_id=0) }}".replace('0', fileId);
-                
-                // Show modal
-                const modal = new bootstrap.Modal(renameFileModal);
-                modal.show();
-            });
-        });
-        
-        // Rename folder
-        const renameFolderModal = document.getElementById('renameFolderModal');
-        const renameFolderButtons = document.querySelectorAll('.rename-folder');
-        
-        renameFolderButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const folderId = this.getAttribute('data-folder-id');
-                const folderName = this.getAttribute('data-folder-name');
-                
-                document.getElementById('newFolderName').value = folderName;
-                document.getElementById('renameFolderForm').action = "{{ url_for('files.rename_folder', folder_id=0) }}".replace('0', folderId);
-                
-                // Show modal
-                const modal = new bootstrap.Modal(renameFolderModal);
-                modal.show();
-            });
-        });
-        
-        // Download folder
-        const downloadFolderButtons = document.querySelectorAll('.download-folder');
-        downloadFolderButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const folderId = this.getAttribute('data-folder-id');
-                const folderName = this.getAttribute('data-folder-name');
-                
-                // Redirect to a download endpoint that creates a zip of the folder
-                window.location.href = "{{ url_for('files.download_folder', folder_id=0) }}".replace('0', folderId);
-            });
-        });
-        
-        // Format speed function - fixed to correctly display speeds
-        const formatSpeed = function(bytesPerSecond) {
-            if (bytesPerSecond < 0.1) {
-                return '0 KB/s';
-            } else if (bytesPerSecond >= 1073741824) {
-                return (bytesPerSecond / 1073741824).toFixed(2) + ' GB/s';
-            } else if (bytesPerSecond >= 1048576) {
-                return (bytesPerSecond / 1048576).toFixed(2) + ' MB/s';
-            } else {
-                return (bytesPerSecond / 1024).toFixed(2) + ' KB/s';
-            }
-        };
-        
-        // File Upload with AJAX and Progress
-        const uploadForm = document.getElementById('uploadForm');
-        const uploadButton = document.getElementById('uploadButton');
-        const uploadingFiles = document.getElementById('uploadingFiles');
-        const fileProgressBar = document.getElementById('fileProgressBar');
-        const totalProgressBar = document.getElementById('totalProgressBar');
-        const currentFileName = document.getElementById('currentFileName');
-        const uploadSpeed = document.getElementById('uploadSpeed');
-        const uploadedCount = document.getElementById('uploadedCount');
-        
-        if (uploadForm) {
-            uploadForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const filesInput = document.getElementById('files');
-                const folderInput = document.getElementById('folder');
-                const isFolderUpload = document.querySelector('#folder-tab').classList.contains('active');
-                
-                const files = isFolderUpload ? folderInput.files : filesInput.files;
-                
-                if (files.length === 0) {
-                    alert('Please select files to upload');
-                    return;
-                }
-                
-                uploadButton.disabled = true;
-                uploadingFiles.classList.remove('d-none');
-                
-                // Prepare for upload
-                const formData = new FormData();
-                
-                // Add folder_id
-                formData.append('folder_id', '{{ current_folder.id }}');
-                
-                // Set is_folder_upload flag correctly
-                formData.append('is_folder_upload', isFolderUpload ? 'true' : 'false');
-                
-                // Add all files to formData, preserving folder structure
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    // For folder upload, use webkitRelativePath to preserve structure
-                    const filepath = isFolderUpload ? file.webkitRelativePath : file.name;
-                    formData.append('files[]', file, filepath);
-                }
-                
-                // Set up AJAX request
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', '{{ url_for("files.upload_file") }}', true);
-                
-                // Variables for real-time speed calculation
-                let lastLoaded = 0;
-                let lastTime = Date.now();
-                
-                // Track upload progress
-                xhr.upload.onprogress = function(e) {
-                    if (e.lengthComputable) {
-                        const percentComplete = (e.loaded / e.total) * 100;
-                        
-                        // Update total progress bar
-                        totalProgressBar.style.width = percentComplete + '%';
-                        totalProgressBar.textContent = Math.round(percentComplete) + '%';
-                        
-                        // Mirror the same percentage on the single-file bar
-                        fileProgressBar.style.width = percentComplete + '%';
-                        fileProgressBar.textContent = Math.round(percentComplete) + '%';
-                        
-                        // Update uploaded files count text
-                        uploadedCount.textContent = `Uploading ${files.length} files`;
-                        
-                        // Calculate and display upload speed
-                        const currentTime = Date.now();
-                        const timeDiff = (currentTime - lastTime) / 1000; // seconds
-                        if (timeDiff > 0) {
-                            const bytesDiff = e.loaded - lastLoaded;
-                            const bytesPerSecond = bytesDiff / timeDiff;
-                            uploadSpeed.textContent = formatSpeed(bytesPerSecond);
-                            lastLoaded = e.loaded;
-                            lastTime = currentTime;
-                        }
-                        // If upload finished but awaiting server processing, update message
-                        if (percentComplete >= 100) {
-                            currentFileName.textContent = '‌Processing on server side. Please wait…';
-                        }
-                    }
-                };
-                
-                // Handle response
-                xhr.onload = function() {
-                    if (xhr.status === 200) {
-                        window.location.reload();
-                    } else {
-                        showErrorModal('上传失败', '服务器返回错误，请稍后重试。');
-                        uploadButton.disabled = false;
-                    }
-                };
-                
-                xhr.onerror = function() {
-                    showErrorModal('上传失败', '网络错误，请检查连接或稍后重试。');
-                    uploadButton.disabled = false;
-                };
-                
-                // Send the upload
-                xhr.send(formData);
-            });
-            
-            // Handle tab switching
-            const filesTab = document.getElementById('files-tab');
-            const folderTab = document.getElementById('folder-tab');
-            const filesInput = document.getElementById('files');
-            const folderInput = document.getElementById('folder');
-            
-            filesTab.addEventListener('click', function() {
-                filesInput.value = '';
-                uploadButton.disabled = false;
-                uploadingFiles.classList.add('d-none');
-            });
-            
-            folderTab.addEventListener('click', function() {
-                folderInput.value = '';
-                uploadButton.disabled = false;
-                uploadingFiles.classList.add('d-none');
-            });
-        }
-        
-        // Select All Functionality
-        const selectAllCheckbox = document.getElementById('selectAllCheckbox');
-        const selectAllBtn = document.getElementById('selectAllBtn');
-        const itemCheckboxes = document.querySelectorAll('.item-select');
-        const batchActionsGroup = document.getElementById('batchActionsGroup');
-        const batchOperationsForm = document.getElementById('batchOperationsForm');
-        const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
-        const moveSelectedBtn = document.getElementById('moveSelectedBtn');
-        
-        function updateBatchActionsVisibility() {
-            const checkedBoxes = document.querySelectorAll('.item-select:checked');
-            if (checkedBoxes.length > 0) {
-                batchActionsGroup.classList.remove('d-none');
-            } else {
-                batchActionsGroup.classList.add('d-none');
-            }
-        }
-        
-        // Handle select all checkbox
-        if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener('change', function() {
-                const isChecked = this.checked;
-                itemCheckboxes.forEach(checkbox => {
-                    checkbox.checked = isChecked;
-                });
-                updateBatchActionsVisibility();
-            });
-        }
-        
-        // Handle select all button
-        if (selectAllBtn) {
-            selectAllBtn.addEventListener('click', function() {
-                const allSelected = Array.from(itemCheckboxes).every(cb => cb.checked);
-                
-                itemCheckboxes.forEach(checkbox => {
-                    checkbox.checked = !allSelected;
-                });
-                
-                if (selectAllCheckbox) {
-                    selectAllCheckbox.checked = !allSelected;
-                }
-                
-                updateBatchActionsVisibility();
-            });
-        }
-        
-        // Update batch actions when individual checkboxes change
-        itemCheckboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', updateBatchActionsVisibility);
-        });
-        
-        // Handle delete selected items button
-        if (deleteSelectedBtn) {
-            deleteSelectedBtn.addEventListener('click', function() {
-                const checkedBoxes = document.querySelectorAll('.item-select:checked');
-                if (checkedBoxes.length === 0) {
-                    alert('Please select items to delete');
-                    return;
-                }
-                
-                if (confirm(`Are you sure you want to delete ${checkedBoxes.length} selected item(s)?`)) {
-                    batchOperationsForm.action = "{{ url_for('files.batch_delete') }}";
-                    document.getElementById('batchAction').value = 'delete';
-                    batchOperationsForm.submit();
-                }
-            });
-        }
-        
-        // Handle move selected button
-        if (moveSelectedBtn) {
-            moveSelectedBtn.addEventListener('click', function() {
-                const checkedBoxes = document.querySelectorAll('.item-select:checked');
-                if (checkedBoxes.length === 0) {
-                    alert('Please select items to move');
-                    return;
-                }
-                // Clear previous hidden inputs
-                const container = document.getElementById('selectedItemsContainer');
-                container.innerHTML = '';
-                // Add hidden inputs for each selected item
-                checkedBoxes.forEach(cb => {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'selected_items[]';
-                    input.value = cb.value;
-                    container.appendChild(input);
-                });
-                // Show modal
-                const moveModal = new bootstrap.Modal(document.getElementById('moveModal'));
-                moveModal.show();
-            });
-        }
-    });
-</script>
-{% endblock %} 
+<script defer src="{{ url_for('static', filename='js/files-index.js') }}"></script>
+{% endblock %}

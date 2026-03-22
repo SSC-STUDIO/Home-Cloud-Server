@@ -1,0 +1,3 @@
+{% for folder in all_folders %}
+<option value="{{ folder.id }}">{{ folder.name }}{% if folder.parent_id %} (ID: {{ folder.id }}){% endif %}</option>
+{% endfor %}

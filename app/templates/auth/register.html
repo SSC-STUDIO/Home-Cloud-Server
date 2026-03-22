@@ -1,156 +1,114 @@
 {% extends 'base.html' %}
+{% import 'auth/partials/_auth_macros.html' as auth_macros %}
 
 {% block title %}Register - Home Cloud Server{% endblock %}
 
+{% block body_class %}{{ super() }} auth-page{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <div class="card shadow-sm border-0">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Home Cloud Server Logo" class="mb-3" style="max-width: 100px;">
-                        <h2 class="fw-bold mb-0">Create an Account</h2>
-                        <p class="text-muted">Join Home Cloud Server today</p>
+{% set showcase_stats = [
+    ('Approval', 'Your role, quota, and retention rules remain controlled by the server.'),
+    ('Storage', 'New accounts open the same file, recycle, and transfer workflow after sign-in.'),
+    ('Security', 'Registration creates access credentials, not a separate product experience.')
+] %}
+{% set showcase_features = [
+    ('user-check', 'Choose a username and email you can keep using for ongoing access.'),
+    ('shield-halved', 'Server-side permissions decide what appears after the account is active.'),
+    ('folder-tree', 'Once approved, you land in the same workspace used for uploads, folders, and transfer history.')
+] %}
+<section class="auth-layout">
+    <div class="auth-shell auth-shell--form-first">
+        <div class="auth-panel auth-form-panel">
+            {{ auth_macros.render_form_intro(
+                'Account setup',
+                'Create your account',
+                'Create the account details you will use to access your private workspace.'
+            ) }}
+
+            <form action="{{ url_for('auth.register') }}" method="POST" id="registerForm">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-user"></i>
+                            </span>
+                            <input type="text" class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+                        </div>
+                        <div class="form-text">Use 3-20 characters with letters, numbers, or underscores.</div>
                     </div>
-                    
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-                    
-                    <form action="{{ url_for('auth.register') }}" method="POST" id="registerForm">
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="username" class="form-label">Username</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-user"></i>
-                                    </span>
-                                    <input type="text" class="form-control" id="username" name="username" required autofocus>
-                                </div>
-                                <div class="form-text">Username must be 3-20 characters and can only contain letters, numbers, and underscores.</div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="email" class="form-label">Email Address</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-envelope"></i>
-                                    </span>
-                                    <input type="email" class="form-control" id="email" name="email" required>
-                                </div>
-                            </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="email" class="form-label">Email Address</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-envelope"></i>
+                            </span>
+                            <input type="email" class="form-control" id="email" name="email" autocomplete="email" required>
                         </div>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="password" class="form-label">Password</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-lock"></i>
-                                    </span>
-                                    <input type="password" class="form-control" id="password" name="password" required>
-                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
-                                </div>
-                                <div class="form-text">Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.</div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="confirm_password" class="form-label">Confirm Password</label>
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-lock"></i>
-                                    </span>
-                                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-                                </div>
-                                <div id="password-feedback" class="invalid-feedback">
-                                    Passwords do not match.
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4 form-check">
-                            <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
-                            <label class="form-check-label" for="terms">
-                                I agree to the Terms of Service and Privacy Policy
-                            </label>
-                        </div>
-                        
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary py-2">Create Account</button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
-                <div class="card-footer bg-light py-3 text-center">
-                    <p class="mb-0">
-                        Already have an account? 
-                        <a href="{{ url_for('auth.login') }}" class="text-decoration-none">Sign in</a>
-                    </p>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="password" name="password" autocomplete="new-password" required>
+                            <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Toggle password visibility">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        <div class="form-text">Minimum 8 characters with upper, lower, number, and symbol.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="confirm_password" class="form-label">Confirm Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" autocomplete="new-password" required>
+                        </div>
+                        <div id="password-feedback" class="invalid-feedback">
+                            Passwords do not match.
+                        </div>
+                    </div>
                 </div>
+
+                <div class="mb-4 form-check">
+                    <input type="checkbox" class="form-check-input" id="terms" name="terms" required>
+                    <label class="form-check-label" for="terms">I agree to the Terms of Service and Privacy Policy.</label>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg">Create Account</button>
+                </div>
+            </form>
+
+            <div class="auth-links">
+                <span>Already registered? <a href="{{ url_for('auth.login') }}">Sign in</a></span>
+                <span>Server-controlled onboarding</span>
             </div>
-            <div class="text-center mt-4">
-                <p class="text-muted small">
-                    <i class="fas fa-shield-alt me-1"></i> Your data is secure with us
-                </p>
+
+            <div class="auth-assurance">
+                <i class="fas fa-shield-alt"></i>
+                <span>Registration creates credentials. Access level, quota, and retention stay controlled by the server after approval.</span>
             </div>
         </div>
+
+        {{ auth_macros.render_showcase(
+            'cloud-arrow-up',
+            'Personal cloud workspace',
+            'Create access once. Use the same workspace after that.',
+            'The important step here is setting up a clean account, not reading a large landing page before you can continue.',
+            showcase_stats,
+            showcase_features
+        ) }}
     </div>
-</div>
+</section>
 {% endblock %}
 
 {% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Toggle password visibility
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordInput = document.getElementById('password');
-        
-        togglePassword.addEventListener('click', function() {
-            // Toggle the password visibility
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            
-            // Toggle the eye icon
-            const eyeIcon = this.querySelector('i');
-            eyeIcon.classList.toggle('fa-eye');
-            eyeIcon.classList.toggle('fa-eye-slash');
-        });
-        
-        // Password validation
-        const confirmPassword = document.getElementById('confirm_password');
-        const form = document.getElementById('registerForm');
-        const passwordFeedback = document.getElementById('password-feedback');
-        
-        function validatePassword() {
-            if (passwordInput.value !== confirmPassword.value) {
-                confirmPassword.setCustomValidity('Passwords do not match');
-                confirmPassword.classList.add('is-invalid');
-                passwordFeedback.style.display = 'block';
-                return false;
-            } else {
-                confirmPassword.setCustomValidity('');
-                confirmPassword.classList.remove('is-invalid');
-                passwordFeedback.style.display = 'none';
-                return true;
-            }
-        }
-        
-        // Check password match on input
-        passwordInput.addEventListener('input', validatePassword);
-        confirmPassword.addEventListener('input', validatePassword);
-        
-        // Form submission validation
-        form.addEventListener('submit', function(e) {
-            if (!validatePassword()) {
-                e.preventDefault();
-            }
-        });
-    });
-</script>
-{% endblock %} 
+<script defer src="{{ url_for('static', filename='js/password.js') }}"></script>
+{% endblock %}

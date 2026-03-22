@@ -1,0 +1,255 @@
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadModalLabel"><i class="fas fa-upload me-2"></i>Upload Files</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('files.upload_file') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+                    <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
+
+                    <ul class="nav nav-tabs mb-3" id="uploadTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="files-tab" data-bs-toggle="tab" data-bs-target="#files-pane" type="button" role="tab" aria-controls="files-pane" aria-selected="true">Files</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="folder-tab" data-bs-toggle="tab" data-bs-target="#folder-pane" type="button" role="tab" aria-controls="folder-pane" aria-selected="false">Folder</button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="uploadTabContent">
+                        <div class="tab-pane fade show active" id="files-pane" role="tabpanel" aria-labelledby="files-tab">
+                            <button type="button" class="upload-dropzone" id="filesDropzone">
+                                <span class="upload-dropzone__icon"><i class="fas fa-cloud-arrow-up"></i></span>
+                                <span class="upload-dropzone__title">Drop files here</span>
+                                <span class="upload-dropzone__copy">Or click to browse and queue multiple files at once.</span>
+                            </button>
+                            <div class="mb-3">
+                                <label for="files" class="form-label">Select Files</label>
+                                <input type="file" class="form-control" id="files" name="files[]" multiple>
+                                <div class="form-text">Select multiple files and they will upload in one queue.</div>
+                            </div>
+                        </div>
+                        <div class="tab-pane fade" id="folder-pane" role="tabpanel" aria-labelledby="folder-tab">
+                            <div class="mb-3">
+                                <label for="folder" class="form-label">Select Folder</label>
+                                <input type="file" class="form-control" id="folder" name="files[]" webkitdirectory directory multiple>
+                                <input type="hidden" name="is_folder_upload" id="folderUploadFlag" value="true" disabled>
+                                <div class="form-text">Upload a full folder tree while preserving its structure.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="upload-selection-summary d-none" id="uploadSelectionSummary">
+                        <div class="upload-selection-summary__top">
+                            <div>
+                                <strong class="upload-selection-summary__title" id="uploadSelectionTitle">Selection ready</strong>
+                                <p class="upload-selection-summary__meta" id="uploadSelectionMeta"></p>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" id="clearUploadSelectionBtn">Clear</button>
+                        </div>
+                        <ul class="upload-selection-list" id="uploadSelectionList"></ul>
+                    </div>
+
+                    <div id="uploadingFiles" class="d-none">
+                        <div class="mb-3">
+                            <div class="small mb-1 d-flex justify-content-between">
+                                <span id="currentFileName">Uploading...</span>
+                                <span id="uploadSpeed">0 KB/s</span>
+                            </div>
+                            <div class="progress mb-2">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" id="fileProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <div class="small mb-1 d-flex justify-content-between">
+                                <span>Total Progress</span>
+                                <span id="uploadedCount">0/0 files</span>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar bg-success progress-bar-striped progress-bar-animated" id="totalProgressBar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-grid mt-3">
+                        <button type="submit" class="btn btn-primary" id="uploadButton">Upload</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="newFolderModal" tabindex="-1" aria-labelledby="newFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newFolderModalLabel"><i class="fas fa-folder-plus me-2"></i>New Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('files.create_folder') }}" method="POST">
+                    <input type="hidden" name="parent_id" value="{{ current_folder.id }}">
+                    <div class="mb-3">
+                        <label for="folder_name" class="form-label">Folder Name</label>
+                        <input type="text" class="form-control" id="folder_name" name="folder_name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Create Folder</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteFileModal" tabindex="-1" aria-labelledby="deleteFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteFileModalLabel"><i class="fas fa-trash me-2"></i>Delete File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="deleteFileName"></strong>?</p>
+                <p class="text-danger mb-0">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteFileForm" action="" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteFolderModal" tabindex="-1" aria-labelledby="deleteFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteFolderModalLabel"><i class="fas fa-trash me-2"></i>Delete Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete folder <strong id="deleteFolderName"></strong>?</p>
+                <p class="text-danger mb-0">All files and subfolders inside will also be deleted. This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="deleteFolderForm" action="" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="renameFileModal" tabindex="-1" aria-labelledby="renameFileModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="renameFileModalLabel"><i class="fas fa-pen me-2"></i>Rename File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="renameFileForm" action="" method="POST">
+                    <div class="mb-3">
+                        <label for="newFileName" class="form-label">New Name</label>
+                        <input type="text" class="form-control" id="newFileName" name="new_name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="renameFolderModal" tabindex="-1" aria-labelledby="renameFolderModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="renameFolderModalLabel"><i class="fas fa-pen me-2"></i>Rename Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="renameFolderForm" action="" method="POST">
+                    <div class="mb-3">
+                        <label for="newFolderName" class="form-label">New Name</label>
+                        <input type="text" class="form-control" id="newFolderName" name="new_name" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Rename</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="moveModal" tabindex="-1" aria-labelledby="moveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moveModalLabel"><i class="fas fa-folder-open me-2"></i>Move Items</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="moveForm" method="POST" action="{{ url_for('files.batch_move') }}">
+                    <div class="mb-3">
+                        <label for="destinationSelect" class="form-label">Select Destination Folder</label>
+                        <select class="form-select" id="destinationSelect" name="destination_id" required>
+                            {% include 'files/partials/_destination_options.html' %}
+                        </select>
+                    </div>
+                    <div id="selectedItemsContainer"></div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="remoteDownloadModal" tabindex="-1" aria-labelledby="remoteDownloadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="remoteDownloadModalLabel"><i class="fas fa-link me-2"></i>Download from URL</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form action="{{ url_for('files.remote_download') }}" method="POST">
+                    <input type="hidden" name="folder_id" value="{{ current_folder.id }}">
+                    <div class="mb-3">
+                        <label for="file_url" class="form-label">File URL</label>
+                        <input type="url" class="form-control" id="file_url" name="file_url" placeholder="https://example.com/file.zip" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Download</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalTitle" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="errorModalTitle">Upload Error</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="errorModalBody">Something went wrong while processing your request.</div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

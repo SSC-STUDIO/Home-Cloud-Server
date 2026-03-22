@@ -82,3 +82,8 @@ Thumbs.db
 
 # UI evidence
 output/ui/*.png
+task_plan.md
+findings.md
+progress.md
+team-board.md
+store.json

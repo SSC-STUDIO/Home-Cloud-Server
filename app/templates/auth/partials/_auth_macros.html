@@ -1,0 +1,42 @@
+{% macro render_showcase(badge_icon, badge_text, title, copy, stats, features) -%}
+<div class="auth-panel auth-showcase">
+    <div class="auth-support-header">
+        <div class="auth-badge">
+            <i class="fas fa-{{ badge_icon }}"></i>
+            <span>{{ badge_text }}</span>
+        </div>
+        <span class="auth-support-label">What to expect</span>
+    </div>
+    <h1 class="auth-title">{{ title }}</h1>
+    <p class="auth-copy">{{ copy }}</p>
+
+    <ul class="auth-feature-list">
+        {% for icon, feature_copy in features %}
+        <li>
+            <i class="fas fa-{{ icon }}"></i>
+            <span>{{ feature_copy }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <div class="auth-stats">
+        {% for stat_title, stat_copy in stats %}
+        <div class="auth-stat">
+            <strong>{{ stat_title }}</strong>
+            <span>{{ stat_copy }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{%- endmacro %}
+
+{% macro render_form_intro(eyebrow, title, copy) -%}
+<div class="auth-brand">
+    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Home Cloud Server Logo" class="auth-logo" loading="lazy">
+    <div>
+        <p class="auth-eyebrow">{{ eyebrow }}</p>
+        <h2 class="auth-form-title">{{ title }}</h2>
+    </div>
+</div>
+<p class="auth-form-copy">{{ copy }}</p>
+{%- endmacro %}

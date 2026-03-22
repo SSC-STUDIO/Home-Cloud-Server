@@ -17,8 +17,106 @@ import zipfile
 import io
 from app.utils.transfer_tracker import TransferSpeedTracker
 import shutil  # 新增，用于磁盘空间检测
+from sqlalchemy import func
 
 files = Blueprint('files', __name__)
+
+def wants_json_response():
+    return (
+        request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        or request.accept_mimetypes.best == 'application/json'
+    )
+
+def get_files_page_context(user_id, folder_id=None):
+    if folder_id:
+        current_folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
+        parent_folder = Folder.query.filter_by(id=current_folder.parent_id).first() if current_folder.parent_id else None
+    else:
+        current_folder = Folder.query.filter_by(user_id=user_id, parent_id=None, is_deleted=False).first()
+        if not current_folder:
+            current_folder = Folder(name='root', user_id=user_id)
+            db.session.add(current_folder)
+            db.session.commit()
+        parent_folder = None
+
+    subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+    files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+
+    user = User.query.get(user_id)
+    storage_used = user.update_storage_used()
+    storage_quota = user.storage_quota
+    storage_percent = (storage_used / storage_quota) * 100 if storage_quota > 0 else 100
+    all_folders = Folder.query.filter_by(user_id=user_id, is_deleted=False).all()
+
+    return {
+        'current_folder': current_folder,
+        'parent_folder': parent_folder,
+        'subfolders': subfolders,
+        'files': files,
+        'storage_used': storage_used,
+        'storage_quota': storage_quota,
+        'storage_percent': storage_percent,
+        'all_folders': all_folders,
+    }
+
+def build_upload_feedback(uploaded_count, error_count):
+    if uploaded_count == 0:
+        return {
+            'state': 'error',
+            'title': 'Upload failed',
+            'message': 'No files were uploaded. Review the selection and try again.',
+        }
+
+    if error_count > 0:
+        return {
+            'state': 'progress',
+            'title': 'Upload finished with warnings',
+            'message': f'{uploaded_count} file(s) uploaded successfully, {error_count} failed.',
+        }
+
+    return {
+        'state': 'success',
+        'title': 'Upload complete',
+        'message': f'All {uploaded_count} file(s) uploaded successfully.',
+    }
+
+def build_upload_json_payload(user_id, folder_id, uploaded_count, error_count, recent_items=None):
+    context = get_files_page_context(user_id, folder_id)
+
+    if context['storage_percent'] > 90:
+        storage_bar_class = 'bg-danger'
+    elif context['storage_percent'] > 70:
+        storage_bar_class = 'bg-warning'
+    else:
+        storage_bar_class = 'bg-success'
+
+    feedback = build_upload_feedback(uploaded_count, error_count)
+
+    return {
+        'feedback': feedback,
+        'uploaded_count': uploaded_count,
+        'error_count': error_count,
+        'recent_items': recent_items or [],
+        'has_items': bool(context['subfolders'] or context['files']),
+        'metrics': {
+            'storage_value': f"{round(context['storage_used'] / (1024 * 1024 * 1024), 2)} GB / {round(context['storage_quota'] / (1024 * 1024 * 1024), 2)} GB",
+            'storage_note': f"{round(context['storage_percent'], 1)}% of your quota is currently in use.",
+            'storage_percent': round(context['storage_percent'], 1),
+            'storage_bar_class': storage_bar_class,
+            'folders_count': len(context['subfolders']),
+            'files_count': len(context['files']),
+            'visible_count': len(context['subfolders']) + len(context['files']),
+        },
+        'rows_html': render_template(
+            'files/partials/_table_rows.html',
+            subfolders=context['subfolders'],
+            files=context['files'],
+        ),
+        'destination_options_html': render_template(
+            'files/partials/_destination_options.html',
+            all_folders=context['all_folders'],
+        ),
+    }
 
 def allowed_file(filename):
     # Get allowed file types from system settings
@@ -76,48 +174,74 @@ def get_free_space(path):
         # 如果无法获取，返回0表示空间不足
         return 0
 
+def cleanup_saved_file(path):
+    if not path:
+        return
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError as exc:
+        print(f"Error cleaning up file {path}: {exc}")
+
+def normalize_item_name(raw_value):
+    if raw_value is None:
+        return None
+
+    value = raw_value.strip()
+    if not value or value in {'.', '..'}:
+        return None
+
+    if len(value) > 255:
+        return None
+
+    if any(separator in value for separator in ('/', '\\')):
+        return None
+
+    if any(ord(character) < 32 for character in value):
+        return None
+
+    return value
+
+def build_storage_filename(filename):
+    safe_name = secure_filename(filename)
+    if safe_name:
+        return f"{uuid.uuid4().hex}_{safe_name}"
+
+    _, extension = os.path.splitext(filename)
+    fallback_name = f"file{extension}" if extension else "file"
+    return f"{uuid.uuid4().hex}_{fallback_name}"
+
+def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
+    query = Folder.query.filter(
+        Folder.user_id == user_id,
+        Folder.parent_id == parent_id,
+        Folder.is_deleted.is_(False),
+        func.lower(Folder.name) == folder_name.lower(),
+    )
+    if exclude_folder_id is not None:
+        query = query.filter(Folder.id != exclude_folder_id)
+    return query.first() is not None
+
+def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
+    query = File.query.filter(
+        File.user_id == user_id,
+        File.folder_id == folder_id,
+        File.is_deleted.is_(False),
+        func.lower(File.original_filename) == filename.lower(),
+    )
+    if exclude_file_id is not None:
+        query = query.filter(File.id != exclude_file_id)
+    return query.first() is not None
+
+def escaped_like_query(value):
+    return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
 @files.route('/files')
 @login_required
 def index():
     user_id = session.get('user_id')
     folder_id = request.args.get('folder_id', type=int)
-    
-    # Get user's folders
-    if folder_id:
-        current_folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
-        parent_folder = Folder.query.filter_by(id=current_folder.parent_id).first() if current_folder.parent_id else None
-    else:
-        # Get root folder
-        current_folder = Folder.query.filter_by(user_id=user_id, parent_id=None, is_deleted=False).first()
-        if not current_folder:
-            # Create root folder if it doesn't exist
-            current_folder = Folder(name='root', user_id=user_id)
-            db.session.add(current_folder)
-            db.session.commit()
-        parent_folder = None
-    
-    # Get subfolders and files in current folder
-    subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-    files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-    
-    # Get user's storage info and refresh usage to ensure accuracy
-    user = User.query.get(user_id)
-    storage_used = user.update_storage_used()
-    storage_quota = user.storage_quota
-    storage_percent = (storage_used / storage_quota) * 100 if storage_quota > 0 else 100
-    
-    # Fetch all folders for move-to selection (excluding deleted)
-    all_folders = Folder.query.filter_by(user_id=user_id, is_deleted=False).all()
-    
-    return render_template('files/index.html', 
-                          current_folder=current_folder,
-                          parent_folder=parent_folder,
-                          subfolders=subfolders,
-                          files=files,
-                          storage_used=storage_used,
-                          storage_quota=storage_quota,
-                          storage_percent=storage_percent,
-                          all_folders=all_folders)
+    return render_template('files/index.html', **get_files_page_context(user_id, folder_id))
 
 @files.route('/files/upload', methods=['POST'])
 @login_required
@@ -126,8 +250,15 @@ def upload_file():
     user_id = session.get('user_id')
     is_folder_upload = request.form.get('is_folder_upload') == 'true'
     folder_id = request.form.get('folder_id', type=int)
+    wants_json = wants_json_response()
     
     if not request.files.getlist('files[]'):
+        if wants_json:
+            return jsonify({'feedback': {
+                'state': 'error',
+                'title': 'No files selected',
+                'message': 'Choose at least one file or folder before starting the upload.',
+            }}), 400
         flash('No files selected for upload', 'warning')
         return redirect(url_for('files.index'))
     
@@ -158,6 +289,8 @@ def upload_file():
     created_folders = {}
     uploaded_count = 0
     error_count = 0
+    recent_items = []
+    saved_file_paths = []
     
     def direct_save_file(file_obj, save_path):
         """Directly save file to target location without using temporary storage"""
@@ -233,6 +366,12 @@ def upload_file():
                             db.session.add(new_folder)
                             db.session.flush()  # Get the ID without committing
                             parent_folder = new_folder
+
+                            if parent_folder.parent_id == current_folder.id:
+                                recent_items.append({
+                                    'kind': 'folder',
+                                    'id': parent_folder.id,
+                                })
                         
                         created_folders[current_path] = parent_folder
             else:
@@ -279,7 +418,7 @@ def upload_file():
                 break
             
             # Generate unique filename for storage
-            storage_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
+            storage_filename = build_storage_filename(filename)
             
             # Create folder structure in storage if needed
             folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(parent_folder.id))
@@ -308,6 +447,8 @@ def upload_file():
                     if not direct_save_file(uploaded_file, save_path):
                         raise Exception('direct_save_file failed')
 
+                saved_file_paths.append(save_path)
+
                 # Create file record
                 file_type = get_file_type(filename)
                 new_file = File(
@@ -321,6 +462,13 @@ def upload_file():
                 )
                 
                 db.session.add(new_file)
+                db.session.flush()
+
+                if parent_folder.id == current_folder.id:
+                    recent_items.append({
+                        'kind': 'file',
+                        'id': new_file.id,
+                    })
                 
                 # Update user storage quota
                 user.storage_used += file_size
@@ -338,6 +486,9 @@ def upload_file():
                 
                 uploaded_count += 1
             except Exception as e:
+                cleanup_saved_file(save_path)
+                if save_path in saved_file_paths:
+                    saved_file_paths.remove(save_path)
                 print(f"Error saving file {filename}: {str(e)}")
                 error_count += 1
                 continue
@@ -352,7 +503,15 @@ def upload_file():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
+        for save_path in saved_file_paths:
+            cleanup_saved_file(save_path)
         print(f"Error committing changes: {str(e)}")
+        if wants_json:
+            return jsonify({'feedback': {
+                'state': 'error',
+                'title': 'Upload failed',
+                'message': 'The server could not save the uploaded files to the database.',
+            }}), 500
         flash('Error saving files to database', 'danger')
         return redirect(url_for('files.index'))
     
@@ -363,6 +522,11 @@ def upload_file():
         flash(f'{uploaded_count} files uploaded successfully, {error_count} failed', 'info')
     else:
         flash(f'All {uploaded_count} files uploaded successfully', 'success')
+
+    if wants_json:
+        payload = build_upload_json_payload(user_id, folder_id, uploaded_count, error_count, recent_items=recent_items)
+        status_code = 200 if uploaded_count > 0 else 400
+        return jsonify(payload), status_code
     
     return redirect(url_for('files.index', folder_id=folder_id))
 
@@ -753,22 +917,15 @@ def empty_trash():
 @login_required
 def create_folder():
     user_id = session.get('user_id')
-    folder_name = request.form.get('folder_name')
+    folder_name = normalize_item_name(request.form.get('folder_name'))
     parent_id = request.form.get('parent_id', type=int)
     
     if not folder_name:
-        flash('Folder name is required', 'danger')
+        flash('Enter a valid folder name without path separators', 'danger')
         return redirect(request.referrer or url_for('files.index'))
     
     # Check if folder already exists in the same parent
-    existing_folder = Folder.query.filter_by(
-        name=folder_name, 
-        parent_id=parent_id,
-        user_id=user_id,
-        is_deleted=False
-    ).first()
-    
-    if existing_folder:
+    if folder_name_exists(user_id, parent_id, folder_name):
         flash('A folder with this name already exists', 'danger')
         return redirect(request.referrer or url_for('files.index'))
     
@@ -789,23 +946,40 @@ def create_folder():
 @login_required
 def search_files():
     user_id = session.get('user_id')
-    query = request.args.get('query', '')
+    query = request.args.get('query', '').strip()
     
     if not query:
         return redirect(url_for('files.index'))
+
+    like_query = f"%{escaped_like_query(query)}%"
     
     # Search for files and folders matching the query
     files = File.query.filter(
         File.user_id == user_id,
-        File.is_deleted == False,
-        File.original_filename.like(f'%{query}%')
+        File.is_deleted.is_(False),
+        File.original_filename.ilike(like_query, escape='\\')
     ).all()
     
     folders = Folder.query.filter(
         Folder.user_id == user_id,
-        Folder.is_deleted == False,
-        Folder.name.like(f'%{query}%')
+        Folder.is_deleted.is_(False),
+        Folder.name.ilike(like_query, escape='\\')
     ).all()
+
+    total_count = len(files) + len(folders)
+
+    if wants_json_response():
+        return jsonify({
+            'query': query,
+            'total_count': total_count,
+            'html': render_template(
+                'files/partials/_search_results.html',
+                query=query,
+                files=files,
+                folders=folders,
+                total_count=total_count,
+            ),
+        })
     
     return render_template('files/search.html', query=query, files=files, folders=folders)
 
@@ -813,10 +987,10 @@ def search_files():
 @login_required
 def rename_file(file_id):
     user_id = session.get('user_id')
-    new_name = request.form.get('new_name')
+    new_name = normalize_item_name(request.form.get('new_name'))
     
     if not new_name:
-        flash('File name is required', 'danger')
+        flash('Enter a valid file name without path separators', 'danger')
         return redirect(request.referrer or url_for('files.index'))
     
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
@@ -826,7 +1000,16 @@ def rename_file(file_id):
         extension = file.original_filename.rsplit('.', 1)[1]
         new_name = f"{new_name}.{extension}"
     
-    file.original_filename = secure_filename(new_name)
+    new_name = normalize_item_name(new_name)
+    if not new_name:
+        flash('Enter a valid file name without path separators', 'danger')
+        return redirect(request.referrer or url_for('files.index'))
+
+    if file_name_exists(user_id, file.folder_id, new_name, exclude_file_id=file.id):
+        flash('A file with this name already exists in this folder', 'danger')
+        return redirect(request.referrer or url_for('files.index'))
+
+    file.original_filename = new_name
     file.updated_at = datetime.utcnow()
     
     db.session.commit()
@@ -838,27 +1021,20 @@ def rename_file(file_id):
 @login_required
 def rename_folder(folder_id):
     user_id = session.get('user_id')
-    new_name = request.form.get('new_name')
+    new_name = normalize_item_name(request.form.get('new_name'))
     
     if not new_name:
-        flash('Folder name is required', 'danger')
+        flash('Enter a valid folder name without path separators', 'danger')
         return redirect(request.referrer or url_for('files.index'))
     
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
     
     # Check if a folder with this name already exists in the same parent
-    existing_folder = Folder.query.filter_by(
-        name=new_name, 
-        parent_id=folder.parent_id,
-        user_id=user_id,
-        is_deleted=False
-    ).first()
-    
-    if existing_folder and existing_folder.id != folder_id:
+    if folder_name_exists(user_id, folder.parent_id, new_name, exclude_folder_id=folder_id):
         flash('A folder with this name already exists', 'danger')
         return redirect(request.referrer or url_for('files.index'))
     
-    folder.name = secure_filename(new_name)
+    folder.name = new_name
     folder.updated_at = datetime.utcnow()
     
     db.session.commit()

@@ -1,97 +1,93 @@
 {% extends 'base.html' %}
+{% import 'auth/partials/_auth_macros.html' as auth_macros %}
 
 {% block title %}Login - Home Cloud Server{% endblock %}
 
+{% block body_class %}{{ super() }} auth-page{% endblock %}
+
 {% block content %}
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card shadow-sm border-0">
-                <div class="card-body p-5">
-                    <div class="text-center mb-4">
-                        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Home Cloud Server Logo" class="mb-3" style="max-width: 100px;">
-                        <h2 class="fw-bold mb-0">Welcome Back</h2>
-                        <p class="text-muted">Sign in to your account</p>
+{% set showcase_stats = [
+    ('Workspace', 'Files, folders, uploads, and recovery tools stay in one session.'),
+    ('Access', 'Your role determines whether admin controls appear after sign-in.'),
+    ('Search', 'Look across the full library or filter only the current folder when needed.')
+] %}
+{% set showcase_features = [
+    ('folder-open', 'Return straight to file management instead of navigating through multiple pages.'),
+    ('clock-rotate-left', 'Use recycle bin and transfer history without changing tools.'),
+    ('server', 'Admin accounts can move from storage work into system operations from the same login.')
+] %}
+<section class="auth-layout">
+    <div class="auth-shell auth-shell--stacked">
+        <div class="auth-panel auth-form-panel">
+            {{ auth_macros.render_form_intro(
+                'Secure access',
+                'Welcome back',
+                'Enter your account details to return to your workspace.'
+            ) }}
+
+            <form action="{{ url_for('auth.login') }}" method="POST">
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-user"></i>
+                        </span>
+                        <input type="text" class="form-control" id="username" name="username" autocomplete="username" required autofocus>
                     </div>
-                    
-                    {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                                    {{ message }}
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                    {% endwith %}
-                    
-                    <form action="{{ url_for('auth.login') }}" method="POST">
-                        <div class="mb-3">
-                            <label for="username" class="form-label">Username</label>
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="fas fa-user"></i>
-                                </span>
-                                <input type="text" class="form-control" id="username" name="username" required autofocus>
-                            </div>
-                        </div>
-                        <div class="mb-4">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <label for="password" class="form-label">Password</label>
-                                <a href="{{ url_for('auth.forgot_password') }}" class="text-decoration-none small">Forgot password?</a>
-                            </div>
-                            <div class="input-group">
-                                <span class="input-group-text">
-                                    <i class="fas fa-lock"></i>
-                                </span>
-                                <input type="password" class="form-control" id="password" name="password" required>
-                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
-                                    <i class="fas fa-eye"></i>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="mb-4 form-check">
-                            <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me">
-                            <label class="form-check-label" for="rememberMe">Remember me</label>
-                        </div>
-                        <div class="d-grid gap-2">
-                            <button type="submit" class="btn btn-primary py-2">Sign In</button>
-                        </div>
-                    </form>
                 </div>
-                <div class="card-footer bg-light py-3 text-center">
-                    <p class="mb-0">
-                        Don't have an account? 
-                        <a href="{{ url_for('auth.register') }}" class="text-decoration-none">Create an account</a>
-                    </p>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label for="password" class="form-label mb-0">Password</label>
+                        <a href="{{ url_for('auth.forgot_password') }}" class="small">Forgot password?</a>
+                    </div>
+                    <div class="input-group">
+                        <span class="input-group-text">
+                            <i class="fas fa-lock"></i>
+                        </span>
+                        <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" required>
+                        <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Toggle password visibility">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
+
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+                    <div class="form-check mb-0">
+                        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me">
+                        <label class="form-check-label" for="rememberMe">Remember this device</label>
+                    </div>
+                    <span class="auth-helper-note">Protected session and role-based routes.</span>
+                </div>
+
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
+                </div>
+            </form>
+
+            <div class="auth-links">
+                <span>Need a new account? <a href="{{ url_for('auth.register') }}">Create one</a></span>
+                <span>Private server access only</span>
             </div>
-            <div class="text-center mt-4">
-                <p class="text-muted small">
-                    <i class="fas fa-shield-alt me-1"></i> Secure login protected by encryption
-                </p>
+
+            <div class="auth-assurance">
+                <i class="fas fa-shield-alt"></i>
+                <span>Your files remain behind the server configuration and permissions you already control.</span>
             </div>
         </div>
+
+        {{ auth_macros.render_showcase(
+            'shield-halved',
+            'Private infrastructure',
+            'Sign in first. Then manage the server with context.',
+            'The workspace is designed around the tasks you perform after login, not around marketing copy before it.',
+            showcase_stats,
+            showcase_features
+        ) }}
     </div>
-</div>
+</section>
 {% endblock %}
 
 {% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const togglePassword = document.getElementById('togglePassword');
-        const passwordInput = document.getElementById('password');
-        
-        togglePassword.addEventListener('click', function() {
-            // Toggle the password visibility
-            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
-            passwordInput.setAttribute('type', type);
-            
-            // Toggle the eye icon
-            const eyeIcon = this.querySelector('i');
-            eyeIcon.classList.toggle('fa-eye');
-            eyeIcon.classList.toggle('fa-eye-slash');
-        });
-    });
-</script>
+<script defer src="{{ url_for('static', filename='js/password.js') }}"></script>
 {% endblock %}

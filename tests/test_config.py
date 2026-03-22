@@ -43,5 +43,5 @@ def test_ssl_paths_linux_vs_non_linux(monkeypatch):
     assert linux_config.Config.SSL_KEY == "/etc/ssl/private/home-cloud.key"
 
     darwin_config = reload_config(monkeypatch, "Darwin")
-    assert darwin_config.Config.SSL_CERT.endswith("/ssl/home-cloud.crt")
-    assert darwin_config.Config.SSL_KEY.endswith("/ssl/home-cloud.key")
+    assert Path(darwin_config.Config.SSL_CERT).parts[-2:] == ("ssl", "home-cloud.crt")
+    assert Path(darwin_config.Config.SSL_KEY).parts[-2:] == ("ssl", "home-cloud.key")

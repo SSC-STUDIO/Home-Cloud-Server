@@ -3,249 +3,138 @@
 {% block title %}Admin Dashboard - Home Cloud Server{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h2 class="mb-4"><i class="fas fa-tachometer-alt me-2"></i>Admin Dashboard</h2>
-    
-    <!-- Stats Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stat-card primary">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title">Total Users</div>
-                        <div class="stat-value">{{ total_users }}</div>
+<div class="admin-shell">
+    <section class="admin-hero card border-0">
+        <div class="card-body">
+            <div class="admin-hero__content">
+                <div>
+                    <span class="admin-kicker"><i class="fas fa-satellite-dish"></i><span>Control room</span></span>
+                    <h1 class="admin-title">Infrastructure command overview</h1>
+                    <p class="admin-copy">Track user growth, storage load, and live resource pressure from a control surface designed for quick operational decisions.</p>
+                </div>
+                <div class="admin-hero__actions">
+                    <a href="{{ url_for('admin.system') }}" class="btn btn-primary"><i class="fas fa-chart-line me-2"></i>Detailed System View</a>
+                    <a href="{{ url_for('admin.settings') }}" class="btn btn-light"><i class="fas fa-sliders me-2"></i>Adjust Settings</a>
+                </div>
+            </div>
+
+            <div class="admin-metric-grid">
+                <div class="stat-card primary">
+                    <div class="stat-card__header">
+                        <span class="stat-title">Total Users</span>
+                        <span class="stat-icon"><i class="fas fa-users"></i></span>
                     </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-users"></i>
+                    <div class="stat-value">{{ total_users }}</div>
+                    <p class="stat-note">Accounts currently provisioned on the server.</p>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-card__header">
+                        <span class="stat-title">Total Files</span>
+                        <span class="stat-icon"><i class="fas fa-file"></i></span>
                     </div>
+                    <div class="stat-value">{{ total_files }}</div>
+                    <p class="stat-note">Stored assets available for preview and transfer.</p>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-card__header">
+                        <span class="stat-title">Storage Used</span>
+                        <span class="stat-icon"><i class="fas fa-hdd"></i></span>
+                    </div>
+                    <div class="stat-value">{{ (total_storage_used / (1024 * 1024 * 1024))|round(2) }} GB</div>
+                    <p class="stat-note">Aggregate active storage across all user workspaces.</p>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-card__header">
+                        <span class="stat-title">CPU Usage</span>
+                        <span class="stat-icon"><i class="fas fa-microchip"></i></span>
+                    </div>
+                    <div class="stat-value">{{ system_stats.cpu_percent }}%</div>
+                    <p class="stat-note">Current processor pressure observed by the monitor.</p>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="stat-card success">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title">Total Files</div>
-                        <div class="stat-value">{{ total_files }}</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-file"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card warning">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title">Storage Used</div>
-                        <div class="stat-value">{{ (total_storage_used / (1024*1024*1024))|round(2) }} GB</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-hdd"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card danger">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title">CPU Usage</div>
-                        <div class="stat-value">{{ system_stats.cpu_percent }}%</div>
-                    </div>
-                    <div class="stat-icon">
-                        <i class="fas fa-microchip"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- System Info and Charts -->
-    <div class="row">
-        <!-- System Information -->
-        <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
+    </section>
+
+    <section class="admin-grid">
+        <div class="admin-column">
+            <article class="card admin-panel admin-panel--metrics">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-server me-2"></i>System Information</h5>
                 </div>
                 <div class="card-body">
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>CPU Usage</span>
-                            <span class="badge {% if system_stats.cpu_percent > 90 %}bg-danger{% elif system_stats.cpu_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">
-                                {{ system_stats.cpu_percent }}%
-                            </span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>Memory Usage</span>
-                            <span class="badge {% if system_stats.memory_percent > 90 %}bg-danger{% elif system_stats.memory_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">
-                                {{ system_stats.memory_percent }}%
-                            </span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>Disk Usage</span>
-                            <span class="badge {% if system_stats.disk_percent > 90 %}bg-danger{% elif system_stats.disk_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">
-                                {{ system_stats.disk_percent|round(1) }}%
-                            </span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>Platform</span>
-                            <span class="text-muted">{{ system_stats.platform }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>Python Version</span>
-                            <span class="text-muted">{{ system_stats.python_version }}</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between">
-                            <span>App Version</span>
-                            <span class="text-muted">{{ app_version }}</span>
-                        </li>
-                            <span>Uptime</span>
-                            <span class="text-muted">{{ system_stats.uptime }}</span>
-                        </li>
+                    <ul class="list-group list-group-flush admin-system-list">
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>CPU Usage</span><span class="badge {% if system_stats.cpu_percent > 90 %}bg-danger{% elif system_stats.cpu_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">{{ system_stats.cpu_percent }}%</span></li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>Memory Usage</span><span class="badge {% if system_stats.memory_percent > 90 %}bg-danger{% elif system_stats.memory_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">{{ system_stats.memory_percent }}%</span></li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>Disk Usage</span><span class="badge {% if system_stats.disk_percent > 90 %}bg-danger{% elif system_stats.disk_percent > 70 %}bg-warning{% else %}bg-success{% endif %}">{{ system_stats.disk_percent|round(1) }}%</span></li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>Platform</span><span class="text-muted text-end ms-3">{{ system_stats.platform }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>Python Version</span><span class="text-muted">{{ system_stats.python_version }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>App Version</span><span class="text-muted">{{ app_version }}</span></li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center"><span>Uptime</span><span class="text-muted text-end ms-3">{{ system_stats.uptime }}</span></li>
                     </ul>
                 </div>
-                <div class="card-footer text-center">
-                    <a href="{{ url_for('admin.system') }}" class="btn btn-primary btn-sm">
-                        <i class="fas fa-chart-line me-1"></i> View Detailed Stats
-                    </a>
-                </div>
-            </div>
-        </div>
-        
-        <!-- CPU & Memory Charts -->
-        <div class="col-md-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>System Performance</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="resourceChart" height="230"></canvas>
-                </div>
-            </div>
-            
-            <!-- Quick Actions -->
-            <div class="card shadow-sm">
+            </article>
+
+            <article class="card admin-panel admin-panel--actions">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-bolt me-2"></i>Quick Actions</h5>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <a href="{{ url_for('admin.users') }}" class="btn btn-primary w-100">
-                                <i class="fas fa-users me-1"></i> Manage Users
-                            </a>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <a href="{{ url_for('admin.settings') }}" class="btn btn-secondary w-100">
-                                <i class="fas fa-cog me-1"></i> System Settings
-                            </a>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <a href="{{ url_for('files.index') }}" class="btn btn-success w-100">
-                                <i class="fas fa-folder me-1"></i> File Manager
-                            </a>
-                        </div>
+                    <div class="admin-action-stack">
+                        <a href="{{ url_for('admin.users') }}" class="admin-action-tile">
+                            <span class="admin-action-tile__icon"><i class="fas fa-users"></i></span>
+                            <span>
+                                <strong>Manage Users</strong>
+                                <small>Open account, role, and quota controls.</small>
+                            </span>
+                        </a>
+                        <a href="{{ url_for('admin.settings') }}" class="admin-action-tile">
+                            <span class="admin-action-tile__icon"><i class="fas fa-cog"></i></span>
+                            <span>
+                                <strong>System Settings</strong>
+                                <small>Adjust feature flags, upload limits, and defaults.</small>
+                            </span>
+                        </a>
+                        <a href="{{ url_for('files.index') }}" class="admin-action-tile">
+                            <span class="admin-action-tile__icon"><i class="fas fa-folder-open"></i></span>
+                            <span>
+                                <strong>Open File Manager</strong>
+                                <small>Jump back into the user-facing workspace.</small>
+                            </span>
+                        </a>
                     </div>
                 </div>
-            </div>
+            </article>
         </div>
-    </div>
+
+        <div class="admin-column admin-column--wide">
+            <article class="card admin-panel admin-panel--chart">
+                <div class="card-header">
+                    <div>
+                        <h5 class="mb-1"><i class="fas fa-chart-line me-2"></i>System Performance</h5>
+                        <p class="admin-panel-copy mb-0">Recent CPU, memory, and disk telemetry from the server monitor.</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="admin-chart-shell">
+                        <canvas id="resourceChart" height="230"></canvas>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
 </div>
+
+<script id="resourceChartData" type="application/json">
+{
+  "labels": [{% for metric in recent_metrics|reverse %}"{{ metric.timestamp.strftime('%H:%M') }}"{% if not loop.last %}, {% endif %}{% endfor %}],
+  "cpu": [{% for metric in recent_metrics|reverse %}{{ metric.cpu_usage }}{% if not loop.last %}, {% endif %}{% endfor %}],
+  "memory": [{% for metric in recent_metrics|reverse %}{{ metric.memory_usage }}{% if not loop.last %}, {% endif %}{% endfor %}],
+  "disk": [{% for metric in recent_metrics|reverse %}{{ metric.disk_usage }}{% if not loop.last %}, {% endif %}{% endfor %}]
+}
+</script>
 {% endblock %}
 
 {% block scripts %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Data for system performance chart
-        const labels = [
-            {% for metric in recent_metrics %}
-                "{{ metric.timestamp.strftime('%H:%M') }}",
-            {% endfor %}
-        ];
-        
-        const cpuData = [
-            {% for metric in recent_metrics %}
-                {{ metric.cpu_usage }},
-            {% endfor %}
-        ];
-        
-        const memoryData = [
-            {% for metric in recent_metrics %}
-                {{ metric.memory_usage }},
-            {% endfor %}
-        ];
-        
-        const diskData = [
-            {% for metric in recent_metrics %}
-                {{ metric.disk_usage }},
-            {% endfor %}
-        ];
-        
-        // Create the chart
-        const ctx = document.getElementById('resourceChart').getContext('2d');
-        const resourceChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [
-                    {
-                        label: 'CPU Usage (%)',
-                        data: cpuData,
-                        borderColor: '#e74c3c',
-                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                        tension: 0.3,
-                        fill: true
-                    },
-                    {
-                        label: 'Memory Usage (%)',
-                        data: memoryData,
-                        borderColor: '#3498db',
-                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                        tension: 0.3,
-                        fill: true
-                    },
-                    {
-                        label: 'Disk Usage (%)',
-                        data: diskData,
-                        borderColor: '#f39c12',
-                        backgroundColor: 'rgba(243, 156, 18, 0.1)',
-                        tension: 0.3,
-                        fill: true
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    }
-                },
-                scales: {
-                    y: {
-                        min: 0,
-                        max: 100,
-                        ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        }
-                    }
-                },
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
-                }
-            }
-        });
-    });
-</script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script defer src="{{ url_for('static', filename='js/admin-dashboard.js') }}"></script>
 {% endblock %}

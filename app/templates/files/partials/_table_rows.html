@@ -1,0 +1,7 @@
+{% import 'files/partials/_item_rows.html' as rows %}
+{% for folder in subfolders %}
+{{ rows.render_folder_row(folder) }}
+{% endfor %}
+{% for file in files %}
+{{ rows.render_file_row(file) }}
+{% endfor %}
