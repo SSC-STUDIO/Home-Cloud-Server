@@ -16,6 +16,7 @@ def app_client(tmp_path, monkeypatch):
     monkeypatch.setenv("USE_HTTPS", "0")
     monkeypatch.setenv("SERVER_HOST", "127.0.0.1")
     monkeypatch.setenv("SERVER_PORT", "5056")
+    monkeypatch.setenv("DEFAULT_ADMIN_PASSWORD", "TestAdmin!234")
 
     import config as config_module
     import app as app_module
@@ -35,10 +36,10 @@ def app_client(tmp_path, monkeypatch):
         db.drop_all()
 
 
-def login_admin(client):
+def login_admin(client, password="TestAdmin!234"):
     response = client.post(
         "/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": password},
         follow_redirects=False,
     )
     assert response.status_code == 302

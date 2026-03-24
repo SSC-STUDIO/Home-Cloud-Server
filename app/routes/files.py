@@ -6,7 +6,9 @@ from app.models.system_setting import SystemSetting
 from app.models.activity import Activity
 from app.routes.auth import login_required
 from werkzeug.utils import secure_filename
+import ipaddress
 import os
+import socket
 import uuid
 from datetime import datetime
 import mimetypes
@@ -18,6 +20,7 @@ import io
 from app.utils.transfer_tracker import TransferSpeedTracker
 import shutil  # 新增，用于磁盘空间检测
 from sqlalchemy import func
+from urllib.parse import unquote, urlparse
 
 files = Blueprint('files', __name__)
 
@@ -43,7 +46,7 @@ def get_files_page_context(user_id, folder_id=None):
     files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
 
     user = User.query.get(user_id)
-    storage_used = user.update_storage_used()
+    storage_used = sync_user_storage_used(user)
     storage_quota = user.storage_quota
     storage_percent = (storage_used / storage_quota) * 100 if storage_quota > 0 else 100
     all_folders = Folder.query.filter_by(user_id=user_id, is_deleted=False).all()
@@ -211,6 +214,70 @@ def build_storage_filename(filename):
     fallback_name = f"file{extension}" if extension else "file"
     return f"{uuid.uuid4().hex}_{fallback_name}"
 
+
+def sync_user_storage_used(user):
+    if user is None:
+        return 0
+
+    total_size = db.session.query(func.sum(File.size)).filter_by(user_id=user.id, is_deleted=False).scalar() or 0
+    user.storage_used = total_size
+    return total_size
+
+
+def resolve_managed_file_path(file_path):
+    upload_root = os.path.realpath(current_app.config['UPLOAD_FOLDER'])
+    target_path = os.path.realpath(file_path)
+
+    try:
+        common_path = os.path.commonpath([upload_root, target_path])
+    except ValueError:
+        return None
+
+    if common_path != upload_root or not os.path.isfile(target_path):
+        return None
+
+    return target_path
+
+
+def is_blocked_remote_ip(ip_text):
+    try:
+        ip = ipaddress.ip_address(ip_text)
+    except ValueError:
+        return True
+
+    return (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_unspecified
+        or ip.is_reserved
+    )
+
+
+def validate_remote_download_url(file_url):
+    parsed = urlparse(file_url)
+    if parsed.scheme not in {'http', 'https'}:
+        raise ValueError('Invalid URL')
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError('Invalid URL')
+
+    try:
+        resolved_addresses = socket.getaddrinfo(hostname, parsed.port or None, type=socket.SOCK_STREAM)
+    except socket.gaierror as exc:
+        raise ValueError('Invalid URL') from exc
+
+    if not resolved_addresses:
+        raise ValueError('Invalid URL')
+
+    for address_info in resolved_addresses:
+        resolved_ip = address_info[4][0]
+        if is_blocked_remote_ip(resolved_ip):
+            raise ValueError('Blocked remote address')
+
+
 def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
     query = Folder.query.filter(
         Folder.user_id == user_id,
@@ -331,17 +398,22 @@ def upload_file():
                 path_parts = [p for p in relative_path.split('/') if p not in ('', '.', '..')]
                 if not path_parts:
                     continue
-                filename = path_parts.pop()  # Last part is the filename
-                
+                filename = normalize_item_name(path_parts.pop())
+                if not filename:
+                    error_count += 1
+                    continue
+
                 # Create folder structure
                 current_path = ""
-                for folder_name in path_parts:
-                    if not folder_name:  # Skip empty folder names
-                        continue
-                    
+                for raw_folder_name in path_parts:
+                    folder_name = normalize_item_name(raw_folder_name)
+                    if not folder_name:
+                        parent_folder = None
+                        break
+
                     # Build current path for folder tracking
                     current_path = os.path.join(current_path, folder_name) if current_path else folder_name
-                    
+
                     # Check if we've already created this folder
                     if current_path in created_folders:
                         parent_folder = created_folders[current_path]
@@ -353,7 +425,7 @@ def upload_file():
                             user_id=user_id,
                             is_deleted=False
                         ).first()
-                        
+
                         if existing_folder:
                             parent_folder = existing_folder
                         else:
@@ -372,23 +444,20 @@ def upload_file():
                                     'kind': 'folder',
                                     'id': parent_folder.id,
                                 })
-                        
+
                         created_folders[current_path] = parent_folder
+
+                if parent_folder is None:
+                    error_count += 1
+                    continue
             else:
-                filename = os.path.basename(relative_path)
+                filename = normalize_item_name(os.path.basename(relative_path))
 
             if not filename:
                 continue
-            
+
             # Check if file with same name exists
-            existing_file = File.query.filter_by(
-                original_filename=filename,
-                folder_id=parent_folder.id,
-                user_id=user_id,
-                is_deleted=False
-            ).first()
-            
-            if existing_file:
+            if file_name_exists(user_id, parent_folder.id, filename):
                 # Add timestamp to make filename unique
                 name_parts = os.path.splitext(filename)
                 timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -470,8 +539,7 @@ def upload_file():
                         'id': new_file.id,
                     })
                 
-                # Update user storage quota
-                user.storage_used += file_size
+                sync_user_storage_used(user)
                 
                 # Log activity
                 activity = Activity(
@@ -560,13 +628,17 @@ def download_file(file_id):
         db.session.commit()
         return response
 
+    managed_file_path = resolve_managed_file_path(file.file_path)
+    if not managed_file_path:
+        return '', 404
+
     # Determine mime type from filename for better browser handling
     mime_type, _ = mimetypes.guess_type(file.original_filename)
     if mime_type is None:
         mime_type = 'application/octet-stream'
 
     response = send_file(
-        file.file_path,
+        managed_file_path,
         mimetype=mime_type,
         as_attachment=True,
         download_name=file.original_filename
@@ -621,7 +693,8 @@ def trash():
     
     # Get user's storage info for context (recalculate to ensure up-to-date)
     user = User.query.get(user_id)
-    storage_used = user.update_storage_used()
+    storage_used = sync_user_storage_used(user)
+    db.session.commit()
     storage_quota = user.storage_quota
     storage_percent = (storage_used / storage_quota) * 100 if storage_quota > 0 else 100
     
@@ -652,8 +725,14 @@ def restore_file(file_id):
     print(f"Attempting to restore file ID: {file_id} for user: {user_id}")
     
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=True).first_or_404()
-    print(f"Found file to restore: {file.original_filename}")
-    
+
+    if file_name_exists(user_id, file.folder_id, file.original_filename):
+        message = f'File "{file.original_filename}" cannot be restored because a file with the same name already exists'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': message}), 409
+        flash(message, 'danger')
+        return redirect(url_for('files.trash'))
+
     # Restore file
     file.restore_from_trash()
     
@@ -668,6 +747,7 @@ def restore_file(file_id):
 
     restore_parent_folders(file.folder_id)
     
+    sync_user_storage_used(User.query.get(user_id))
     db.session.commit()
     print(f"File restored from trash: {file.original_filename}")
     
@@ -698,7 +778,14 @@ def restore_folder(folder_id):
     
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=True).first_or_404()
     print(f"Found folder to restore: {folder.name}")
-    
+
+    if folder_name_exists(user_id, folder.parent_id, folder.name):
+        message = f'Folder "{folder.name}" cannot be restored because a folder with the same name already exists'
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': message}), 409
+        flash(message, 'danger')
+        return redirect(url_for('files.trash'))
+
     # Restore folder
     folder.restore_from_trash()
     
@@ -728,6 +815,7 @@ def restore_folder(folder_id):
     # Execute recursive restoration
     restore_subfolders_recursively(folder.id)
     
+    sync_user_storage_used(User.query.get(user_id))
     db.session.commit()
     print(f"Folder restored from trash: {folder.name}, with {files_count} files and {folders_count} subfolders")
     
@@ -759,13 +847,13 @@ def delete_file(file_id):
         # Permanently delete
         file_name = file.original_filename
         file.permanently_delete()
+        sync_user_storage_used(user)
         db.session.commit()
         flash(f'File "{file_name}" permanently deleted', 'success')
     else:   
         # Move to trash
         file.move_to_trash()
-        # Update user's storage usage
-        user.storage_used -= file.size
+        sync_user_storage_used(user)
         db.session.commit()
         flash(f'File "{file.original_filename}" moved to trash', 'success')
 
@@ -783,7 +871,8 @@ def delete_file(file_id):
     
     # Recalculate user's storage usage
     if user:
-        user.update_storage_used()
+        sync_user_storage_used(user)
+        db.session.commit()
     
     return redirect(request.referrer or url_for('files.index'))
 
@@ -819,9 +908,11 @@ def delete_folder(folder_id):
         
         # Execute recursive deletion
         delete_subfolders_recursively(folder.id)
-        
+
         # Finally delete the main folder
         db.session.delete(folder)
+        user = User.query.get(user_id)
+        sync_user_storage_used(user)
         db.session.commit()
         flash(f'Folder "{folder_name}" permanently deleted', 'success')
     else:
@@ -855,10 +946,8 @@ def delete_folder(folder_id):
         
         # Deduct storage usage
         if user:
-            user.storage_used = max(user.storage_used - total_moved_size, 0)
-            # Ensure consistency using helper
-            user.update_storage_used()
-        
+            sync_user_storage_used(user)
+
         db.session.commit()
         flash(f'Folder "{folder.name}" moved to trash', 'success')
     
@@ -874,7 +963,8 @@ def delete_folder(folder_id):
     
     # Recalculate user's storage usage
     if user:
-        user.update_storage_used()
+        sync_user_storage_used(user)
+        db.session.commit()
     
     return redirect(request.referrer or url_for('files.index'))
 
@@ -908,7 +998,8 @@ def empty_trash():
     # Recalculate user's storage usage
     user = User.query.get(user_id)
     if user:
-        user.update_storage_used()
+        sync_user_storage_used(user)
+        db.session.commit()
     
     flash('Trash emptied successfully', 'success')
     return redirect(url_for('files.trash'))
@@ -1238,7 +1329,8 @@ def batch_delete():
     # Recalculate user's storage usage
     user = User.query.get(user_id)
     if user:
-        user.update_storage_used()
+        sync_user_storage_used(user)
+        db.session.commit()
     
     # Log the activity
     activity_details = {
@@ -1276,8 +1368,11 @@ def download_folder(folder_id):
         # files in current folder
         files = File.query.filter_by(folder_id=cur_folder.id, user_id=user_id, is_deleted=False).all()
         for f in files:
+            managed_file_path = resolve_managed_file_path(f.file_path)
+            if not managed_file_path:
+                continue
             arc = os.path.join(path_in_zip, f.original_filename)
-            yield f.file_path, arc, f.size, f.file_type
+            yield managed_file_path, arc, f.size, f.file_type
         # subfolders
         subfolders = Folder.query.filter_by(parent_id=cur_folder.id, user_id=user_id, is_deleted=False).all()
         for sub in subfolders:
@@ -1383,7 +1478,8 @@ def batch_move():
     # Recalculate storage usage
     user = User.query.get(user_id)
     if user:
-        user.update_storage_used()
+        sync_user_storage_used(user)
+        db.session.commit()
     
     # Log activity
     details = {
@@ -1411,11 +1507,15 @@ def raw_file(file_id):
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
 
     # Determine MIME type for correct rendering in browser
-    mime_type, _ = mimetypes.guess_type(file.file_path)
+    managed_file_path = resolve_managed_file_path(file.file_path)
+    if not managed_file_path:
+        return '', 404
+
+    mime_type, _ = mimetypes.guess_type(managed_file_path)
     if mime_type is None:
         mime_type = 'application/octet-stream'
 
-    return send_file(file.file_path, mimetype=mime_type, as_attachment=False, download_name=file.original_filename)
+    return send_file(managed_file_path, mimetype=mime_type, as_attachment=False, download_name=file.original_filename)
 
 
 @files.route('/files/preview/<int:file_id>')
@@ -1432,14 +1532,15 @@ def preview_file(file_id):
 def remote_download():
     """Download a remote file directly into the user's cloud storage."""
     import requests
-    from urllib.parse import urlparse, unquote
 
     user_id = session.get('user_id')
     file_url = request.form.get('file_url', '').strip()
     folder_id = request.form.get('folder_id', type=int)
 
-    if not file_url or not (file_url.startswith('http://') or file_url.startswith('https://')):
-        flash('Invalid URL', 'danger')
+    try:
+        validate_remote_download_url(file_url)
+    except ValueError as exc:
+        flash('Invalid URL' if str(exc) == 'Invalid URL' else 'Blocked remote address', 'danger')
         return redirect(url_for('files.index'))
 
     # Determine current folder
@@ -1454,10 +1555,7 @@ def remote_download():
 
     # Placeholder filename from URL path; will refine after HTTP headers
     parsed = urlparse(file_url)
-    filename = unquote(os.path.basename(parsed.path)) or ''
-
-    # Get file type validation
-    # We will validate after finalizing filename
+    filename = normalize_item_name(unquote(os.path.basename(parsed.path))) or ''
 
     try:
         # Max upload size from settings (default 2TB)
@@ -1469,84 +1567,132 @@ def remote_download():
             except (TypeError, ValueError):
                 pass
 
-        with requests.get(file_url, stream=True, timeout=30) as r:
-            r.raise_for_status()
+        with requests.get(file_url, stream=True, timeout=30, allow_redirects=False) as response:
+            if 300 <= response.status_code < 400:
+                redirect_target = response.headers.get('Location')
+                if not redirect_target:
+                    raise ValueError('Invalid URL')
+                redirect_url = requests.compat.urljoin(file_url, redirect_target)
+                validate_remote_download_url(redirect_url)
+                file_url = redirect_url
+                with requests.get(file_url, stream=True, timeout=30, allow_redirects=False) as redirected_response:
+                    redirected_response.raise_for_status()
+                    r = redirected_response
+                    # Try to get filename from Content-Disposition header
+                    cd_header = r.headers.get('Content-Disposition')
+                    if cd_header:
+                        from werkzeug.http import parse_options_header
+                        _, params = parse_options_header(cd_header)
+                        fname = params.get('filename') or params.get('filename*')
+                        if fname:
+                            filename = normalize_item_name(unquote(fname.split("''")[-1])) or filename
 
-            # Try to get filename from Content-Disposition header
-            cd_header = r.headers.get('Content-Disposition')
-            if cd_header:
-                from werkzeug.http import parse_options_header
-                _, params = parse_options_header(cd_header)
-                fname = params.get('filename') or params.get('filename*')
-                if fname:
-                    filename = unquote(fname.split("''")[-1])  # handle RFC5987
+                    # If still no extension, try to derive from content-type
+                    if filename and '.' not in filename and r.headers.get('Content-Type'):
+                        ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
+                        if ext:
+                            filename = normalize_item_name(f'{filename}{ext}') or filename
 
-            # If still no extension, try to derive from content-type
-            if '.' not in filename and r.headers.get('Content-Type'):
-                import mimetypes
-                ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
-                if ext:
-                    filename += ext
+                    if not filename:
+                        filename = 'downloaded_file'
 
-            if not filename:
-                filename = 'downloaded_file'
+                    if not allowed_file(filename):
+                        flash('File type not allowed', 'danger')
+                        return redirect(url_for('files.index'))
 
-            # Validate extension now
-            if not allowed_file(filename):
-                flash('File type not allowed', 'danger')
-                return redirect(url_for('files.index'))
+                    file_size = int(r.headers.get('Content-Length', 0))
+                    user = User.query.get(user_id)
+                    if file_size and file_size > max_size:
+                        flash('File too large', 'danger')
+                        return redirect(url_for('files.index'))
 
-            # Try to get size
-            file_size = int(r.headers.get('Content-Length', 0))
-            if file_size and file_size > max_size:
-                flash('File too large', 'danger')
-                return redirect(url_for('files.index'))
+                    if file_size and not user.has_space_for_file(file_size):
+                        flash('Not enough storage space', 'danger')
+                        return redirect(url_for('files.index'))
 
-            # Quota check
-            user = User.query.get(user_id)
-            if file_size and not user.has_space_for_file(file_size):
-                flash('Not enough storage space', 'danger')
-                return redirect(url_for('files.index'))
+                    if file_name_exists(user_id, current_folder.id, filename):
+                        name_prefix, ext = os.path.splitext(filename)
+                        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                        filename = f"{name_prefix}_{timestamp}{ext}"
 
-            # Check duplicate filename
-            existing_file = File.query.filter_by(
-                original_filename=filename,
-                folder_id=current_folder.id,
-                user_id=user_id,
-                is_deleted=False
-            ).first()
-            if existing_file:
-                name_prefix, ext = os.path.splitext(filename)
-                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                filename = f"{name_prefix}_{timestamp}{ext}"
+                    storage_filename = build_storage_filename(filename)
+                    folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
+                    os.makedirs(folder_path, exist_ok=True)
+                    save_path = os.path.join(folder_path, storage_filename)
 
-            # Prepare storage path
-            storage_filename = f"{uuid.uuid4().hex}_{secure_filename(filename)}"
-            folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
-            os.makedirs(folder_path, exist_ok=True)
-            save_path = os.path.join(folder_path, storage_filename)
+                    downloaded = 0
+                    with open(save_path, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=8192):
+                            if chunk:
+                                downloaded += len(chunk)
+                                if downloaded > max_size:
+                                    raise ValueError('File too large')
+                                f.write(chunk)
+            else:
+                response.raise_for_status()
+                r = response
 
-            # Write stream to file
-            downloaded = 0
-            with open(save_path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    if chunk:
-                        downloaded += len(chunk)
-                        if downloaded > max_size:
-                            raise ValueError('File too large')
-                        f.write(chunk)
+                # Try to get filename from Content-Disposition header
+                cd_header = r.headers.get('Content-Disposition')
+                if cd_header:
+                    from werkzeug.http import parse_options_header
+                    _, params = parse_options_header(cd_header)
+                    fname = params.get('filename') or params.get('filename*')
+                    if fname:
+                        filename = normalize_item_name(unquote(fname.split("''")[-1])) or filename
 
-        # Final size if not known before
+                # If still no extension, try to derive from content-type
+                if filename and '.' not in filename and r.headers.get('Content-Type'):
+                    ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
+                    if ext:
+                        filename = normalize_item_name(f'{filename}{ext}') or filename
+
+                if not filename:
+                    filename = 'downloaded_file'
+
+                # Validate extension now
+                if not allowed_file(filename):
+                    flash('File type not allowed', 'danger')
+                    return redirect(url_for('files.index'))
+
+                # Try to get size
+                file_size = int(r.headers.get('Content-Length', 0))
+                user = User.query.get(user_id)
+                if file_size and file_size > max_size:
+                    flash('File too large', 'danger')
+                    return redirect(url_for('files.index'))
+
+                if file_size and not user.has_space_for_file(file_size):
+                    flash('Not enough storage space', 'danger')
+                    return redirect(url_for('files.index'))
+
+                if file_name_exists(user_id, current_folder.id, filename):
+                    name_prefix, ext = os.path.splitext(filename)
+                    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                    filename = f"{name_prefix}_{timestamp}{ext}"
+
+                storage_filename = build_storage_filename(filename)
+                folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
+                os.makedirs(folder_path, exist_ok=True)
+                save_path = os.path.join(folder_path, storage_filename)
+
+                downloaded = 0
+                with open(save_path, 'wb') as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        if chunk:
+                            downloaded += len(chunk)
+                            if downloaded > max_size:
+                                raise ValueError('File too large')
+                            f.write(chunk)
+
         if not file_size:
             file_size = os.path.getsize(save_path)
-            # Re-check quota edge case
             user = User.query.get(user_id)
             if not user.has_space_for_file(file_size):
                 os.remove(save_path)
                 flash('Not enough storage space', 'danger')
                 return redirect(url_for('files.index'))
 
-        # Record file in DB
         file_type = get_file_type(filename)
         new_file = File(
             filename=storage_filename,
@@ -1558,9 +1704,8 @@ def remote_download():
             folder_id=current_folder.id
         )
         db.session.add(new_file)
-        user.storage_used += file_size
+        sync_user_storage_used(User.query.get(user_id))
 
-        # Activity log
         activity = Activity(
             user_id=user_id,
             action='remote_download',
@@ -1578,10 +1723,14 @@ def remote_download():
             if 'save_path' in locals() and os.path.exists(save_path):
                 os.remove(save_path)
             flash('File too large', 'danger')
+        elif str(e) == 'Blocked remote address':
+            flash('Blocked remote address', 'danger')
         else:
             print(f"Remote download error: {e}")
             flash('Failed to download file', 'danger')
     except Exception as e:
         print(f"Remote download error: {e}")
+        if 'save_path' in locals() and os.path.exists(save_path):
+            os.remove(save_path)
         flash('Failed to download file', 'danger')
-    return redirect(url_for('files.index', folder_id=current_folder.id)) 
+    return redirect(url_for('files.index', folder_id=current_folder.id))

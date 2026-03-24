@@ -1,6 +1,6 @@
 [project]
 name = "home-cloud-server"
-version = "0.1.9"
+version = "0.1.10"
 description = "Home Cloud Server - Flask-based cloud storage and management system"
 readme = "README.md"
 requires-python = ">=3.11"

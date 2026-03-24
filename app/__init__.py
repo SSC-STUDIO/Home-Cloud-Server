@@ -76,7 +76,7 @@ def create_app(config_name='default'):
     def inject_app_vars():
         return {
             'now': datetime.now,
-            'app_version': app.config.get('APP_VERSION', '1.0.0')
+            'app_version': app.config.get('APP_VERSION', '0.0.0')
         }
     
     @app.route('/')
@@ -85,7 +85,7 @@ def create_app(config_name='default'):
 
     @app.route('/healthz')
     def healthz():
-        return {'status': 'ok', 'version': app.config.get('APP_VERSION', '1.0.0')}, 200
+        return {'status': 'ok', 'version': app.config.get('APP_VERSION', '0.0.0')}, 200
     
     # Error handlers
     @app.errorhandler(404)

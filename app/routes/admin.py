@@ -5,7 +5,6 @@ from app.models.file import File, Folder
 from app.models.system import SystemMetric
 from app.models.system_setting import SystemSetting
 from app.routes.auth import admin_required
-from werkzeug.security import generate_password_hash
 import psutil
 import platform
 import datetime
@@ -94,11 +93,11 @@ def create_user() -> str:
         new_user = User(
             username=username,
             email=email,
-            password_hash=generate_password_hash(password),
             role=role,
             storage_quota=storage_quota,
             trash_retention_days=trash_retention_days
         )
+        new_user.password = password
         
         db.session.add(new_user)
         db.session.commit()
@@ -150,7 +149,7 @@ def edit_user(user_id: int) -> str:
         
         # Update password if provided
         if new_password:
-            user.password_hash = generate_password_hash(new_password)
+            user.password = new_password
         
         db.session.commit()
         flash('User updated successfully', 'success')

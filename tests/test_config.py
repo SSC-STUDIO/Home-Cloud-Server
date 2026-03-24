@@ -45,3 +45,31 @@ def test_ssl_paths_linux_vs_non_linux(monkeypatch):
     darwin_config = reload_config(monkeypatch, "Darwin")
     assert Path(darwin_config.Config.SSL_CERT).parts[-2:] == ("ssl", "home-cloud.crt")
     assert Path(darwin_config.Config.SSL_KEY).parts[-2:] == ("ssl", "home-cloud.key")
+
+
+def test_app_version_reads_version_file(monkeypatch, tmp_path):
+    version_file = tmp_path / "VERSION"
+    version_file.write_text("9.9.9\n", encoding="utf-8")
+
+    config = reload_config(monkeypatch, "Linux")
+    monkeypatch.setattr(config, "VERSION_FILE", version_file)
+
+    assert config.read_version_file() == "9.9.9"
+
+
+def test_app_version_falls_back_when_version_file_missing(monkeypatch, tmp_path):
+    config = reload_config(monkeypatch, "Linux")
+    monkeypatch.setattr(config, "VERSION_FILE", tmp_path / "missing-version")
+
+    assert config.read_version_file(default="unknown") == "unknown"
+
+
+def test_default_admin_password_reads_from_file(monkeypatch, tmp_path):
+    secret_file = tmp_path / "admin-password.txt"
+    secret_file.write_text("file-secret\n", encoding="utf-8")
+    monkeypatch.delenv("DEFAULT_ADMIN_PASSWORD", raising=False)
+    monkeypatch.setenv("DEFAULT_ADMIN_PASSWORD_FILE", str(secret_file))
+
+    config = reload_config(monkeypatch, "Linux")
+
+    assert config.read_secret_setting("DEFAULT_ADMIN_PASSWORD") == "file-secret"

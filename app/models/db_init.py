@@ -1,11 +1,29 @@
-from app.models.user import User
-from app.models.file import File, Folder
-from app.models.system import SystemMetric
-from app.models.system_setting import SystemSetting
-from app.models.activity import Activity
+from app.models import Activity, File, Folder, SystemMetric, SystemSetting, User
 from app.extensions import db
-from werkzeug.security import generate_password_hash
-import os
+import secrets
+
+
+def _read_secret_from_file(path: str) -> str | None:
+    if not path:
+        return None
+
+    try:
+        with open(path, 'r', encoding='utf-8') as secret_file:
+            value = secret_file.read().strip()
+    except OSError:
+        return None
+
+    return value or None
+
+
+def _get_initial_admin_password(app) -> tuple[str, bool]:
+    configured_password = app.config.get('DEFAULT_ADMIN_PASSWORD')
+    if configured_password:
+        return configured_password, False
+
+    generated_password = secrets.token_urlsafe(16)
+    return generated_password, True
+
 
 def initialize_db(app):
     db.init_app(app)
@@ -42,17 +60,22 @@ def initialize_db(app):
         # Check if admin user already exists (create only if missing)
         admin_exists = User.query.filter_by(username='admin').first()
         if not admin_exists:
-            # Create admin user
+            admin_password, generated_password = _get_initial_admin_password(app)
             admin = User(
                 username='admin',
                 email='admin@example.com',
-                password_hash=generate_password_hash('admin123'),
                 role='admin',
                 storage_quota=10 * 1024 * 1024 * 1024  # 10 GB
             )
+            admin.password = admin_password
             db.session.add(admin)
             db.session.commit()
-            
+
+            if generated_password:
+                app.logger.warning('Initialized admin account with generated one-time password: %s', admin_password)
+            else:
+                app.logger.info('Initialized admin account from configured DEFAULT_ADMIN_PASSWORD')
+
             # Create default folders for admin
             admin_root_folder = Folder(
                 name='root',

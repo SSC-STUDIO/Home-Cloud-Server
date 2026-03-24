@@ -4,6 +4,10 @@ import platform
 from pathlib import Path
 
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+VERSION_FILE = PROJECT_ROOT / 'VERSION'
+
+
 def get_env_bool(name, default=False):
     value = os.environ.get(name)
     if value is None:
@@ -28,6 +32,32 @@ def expand_path(value):
 def _project_ssl_path(filename: str) -> str:
     """Get SSL file path inside project directory."""
     return str(Path(__file__).parent / 'ssl' / filename)
+
+
+def read_version_file(default: str = '0.0.0') -> str:
+    try:
+        version = VERSION_FILE.read_text(encoding='utf-8').strip()
+    except OSError:
+        return default
+
+    return version or default
+
+
+def read_secret_setting(name: str) -> str | None:
+    value = os.environ.get(name)
+    if value:
+        return value.strip() or None
+
+    file_path = os.environ.get(f'{name}_FILE')
+    if not file_path:
+        return None
+
+    try:
+        secret_value = Path(file_path).read_text(encoding='utf-8').strip()
+    except OSError:
+        return None
+
+    return secret_value or None
 
 def get_base_storage_path():
     """Get the base storage path based on the operating system"""
@@ -71,8 +101,9 @@ def get_db_path(env):
 
 class Config:
     # Basic configuration
-    APP_VERSION = "1.0.0"  
+    APP_VERSION = read_version_file()
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
+    DEFAULT_ADMIN_PASSWORD = read_secret_setting('DEFAULT_ADMIN_PASSWORD')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER = expand_path(os.environ.get('UPLOAD_FOLDER')) or get_storage_path()
     MAX_CONTENT_LENGTH = get_env_int('MAX_CONTENT_LENGTH', 20000 * 1024 * 1024 * 1024)  # 20TB default

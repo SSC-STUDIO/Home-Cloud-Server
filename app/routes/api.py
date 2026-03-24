@@ -12,7 +12,6 @@ import psutil
 import os
 import uuid
 from werkzeug.utils import secure_filename
-from werkzeug.security import check_password_hash
 
 api = Blueprint('api', __name__)
 
@@ -58,7 +57,7 @@ def api_login_required(f: Callable) -> Callable:
 
             user = User.query.filter_by(username=username).first()
 
-            if not user or not check_password_hash(user.password_hash, password):
+            if not user or not user.verify_password(password):
                 return jsonify({'error': 'Invalid credentials'}), 401
 
             # Store user in g for this request
@@ -82,7 +81,7 @@ def api_admin_required(f: Callable) -> Callable:
 
             user = User.query.filter_by(username=username).first()
 
-            if not user or not check_password_hash(user.password_hash, password):
+            if not user or not user.verify_password(password):
                 return jsonify({'error': 'Invalid credentials'}), 401
 
             # Check if user is admin
@@ -157,7 +156,11 @@ def api_create_folder() -> jsonify:
     
     folder_name = data.get('name')
     parent_id = data.get('parent_id')
-    
+
+    from app.routes.files import normalize_item_name, folder_name_exists
+
+    folder_name = normalize_item_name(folder_name)
+
     if not folder_name:
         return jsonify({'error': 'Folder name is required'}), 400
 
@@ -167,14 +170,7 @@ def api_create_folder() -> jsonify:
             return jsonify({'error': 'Parent folder not found'}), 404
     
     # Check if folder already exists in the same parent
-    existing_folder = Folder.query.filter_by(
-        name=folder_name, 
-        parent_id=parent_id,
-        user_id=user.id,
-        is_deleted=False
-    ).first()
-    
-    if existing_folder:
+    if folder_name_exists(user.id, parent_id, folder_name):
         return jsonify({'error': 'A folder with this name already exists'}), 400
     
     # Create new folder
@@ -237,15 +233,17 @@ def api_upload_file() -> jsonify:
         return jsonify({'error': 'Not enough storage space'}), 400
     
     # Validate file type using shared logic
-    from app.routes.files import allowed_file, get_file_type
-    if not allowed_file(uploaded_file.filename):
+    from app.routes.files import allowed_file, get_file_type, normalize_item_name, build_storage_filename, sync_user_storage_used
+    original_filename = normalize_item_name(uploaded_file.filename)
+    if not original_filename:
+        return jsonify({'error': 'Invalid file name'}), 400
+
+    if not allowed_file(original_filename):
         return jsonify({'error': 'File type not allowed'}), 400
 
     # Save file
-    original_filename = secure_filename(uploaded_file.filename)
-    
     # Generate unique filename to avoid conflicts
-    filename = f"{uuid.uuid4().hex}_{original_filename}"
+    filename = build_storage_filename(original_filename)
     
     # Create uploads directory if it doesn't exist (use folder id for consistency)
     upload_dir = os.path.join(current_app.config['UPLOAD_FOLDER'], str(folder.id))
@@ -268,10 +266,7 @@ def api_upload_file() -> jsonify:
     )
     
     db.session.add(new_file)
-    db.session.commit()
-    
-    # Update user's storage usage
-    user.storage_used += file_size
+    sync_user_storage_used(user)
     db.session.commit()
     
     return jsonify({'success': True, 'file': new_file.to_dict()})

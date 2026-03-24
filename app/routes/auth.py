@@ -1,6 +1,5 @@
 from typing import Callable
 from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response
-from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
 from app.models.user import User
 from app.models.system_setting import SystemSetting
@@ -41,7 +40,7 @@ def login() -> str:
         
         user = User.query.filter_by(username=username).first()
         
-        if user and check_password_hash(user.password_hash, password):
+        if user and user.verify_password(password):
             session['user_id'] = user.id
             session['username'] = user.username
             session['role'] = user.role
@@ -85,10 +84,10 @@ def register() -> str:
         new_user = User(
             username=username,
             email=email,
-            password_hash=generate_password_hash(password),
             role='user',
             storage_quota=default_quota
         )
+        new_user.password = password
         
         db.session.add(new_user)
         db.session.commit()
@@ -133,8 +132,8 @@ def profile() -> str:
         
         # Update password
         if current_password and new_password:
-            if check_password_hash(user.password_hash, current_password):
-                user.password_hash = generate_password_hash(new_password)
+            if user.verify_password(current_password):
+                user.password = new_password
                 flash('Password updated successfully', 'success')
             else:
                 flash('Current password is incorrect', 'danger')

@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.1.10] - 2026-03-23
+
+### Fixed
+- Fixed smoke_ui_capture.py port mismatch: aligned DEFAULT_PORT from 5055 to 5000 to match .env SERVER_PORT and actual server startup, resolving "RuntimeError: Server did not respond within 60s" and WinError 10061 connection failures.
+- Fixed WinError 10049 by ensuring smoke test connects to 127.0.0.1 instead of 0.0.0.0 bind address.
+- Fixed admin bootstrap to require a configured `DEFAULT_ADMIN_PASSWORD` or generate a one-time password instead of falling back to the legacy default credential.
+- Fixed database initialization to create the `system_metrics` table during startup.
+
+### Changed
+- Smoke test now reliably connects to 127.0.0.1:5000 for UI screenshot capture.
+- Enhanced smoke test to handle SERVER_HOST=0.0.0.0 by mapping it to 127.0.0.1 for client connections.
+- Application runtime version now reads from `VERSION` so the UI, health check, and package metadata stay aligned.
+
+### Evidence
+- Smoke log: `C:\Users\96152\.openclaw\workspace\attachments\Home-Cloud-Server\smoke-server-20260323-183020.log`
+- Screenshot: `C:\Users\96152\My-Project\Active\Websites\Home-Cloud-Server\output\ui\home-cloud.png` (462K, 2026-03-23 18:30)
+
 ## [0.1.9] - 2026-03-20
 
 ### Changed

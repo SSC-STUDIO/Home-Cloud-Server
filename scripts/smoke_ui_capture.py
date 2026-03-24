@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 5055
+DEFAULT_PORT = 5000
 DEFAULT_TITLE = "Login - Home Cloud Server"
 DEFAULT_TIMEOUT = int(os.environ.get("SMOKE_TIMEOUT", "60"))
 DEFAULT_LOG_DIR = Path(
@@ -20,6 +20,21 @@ DEFAULT_LOG_DIR = Path(
         r"C:\Users\96152\.openclaw\workspace\attachments\Home-Cloud-Server",
     )
 )
+
+
+def _get_smoke_setting(name: str, default: str) -> str:
+    value = os.environ.get(f"SMOKE_{name}")
+    if value is None or value.strip() == "":
+        return default
+    return value.strip()
+
+
+def _get_smoke_bool(name: str, default: bool) -> bool:
+    value = os.environ.get(f"SMOKE_{name}")
+    if value is None or value.strip() == "":
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
 
 
 def _find_edge() -> str | None:
@@ -100,25 +115,36 @@ def _find_python(repo_root: Path) -> str:
 def main() -> int:
     repo_root = Path(__file__).resolve().parents[1]
     output_path = repo_root / "output" / "ui" / "home-cloud.png"
-    url = f"http://{DEFAULT_HOST}:{DEFAULT_PORT}/"
 
     edge_path = _find_edge()
     if not edge_path:
         raise RuntimeError("Microsoft Edge not found. Install Edge or add msedge to PATH.")
 
     env = os.environ.copy()
-    env.setdefault("USE_HTTPS", "0")
-    env.setdefault("SERVER_HOST", DEFAULT_HOST)
-    env.setdefault("SERVER_PORT", str(DEFAULT_PORT))
-    env.setdefault("APP_CONFIG", "development")
-    env.setdefault("APP_USE_RELOADER", "0")
+    smoke_host = _get_smoke_setting("SERVER_HOST", DEFAULT_HOST)
+    smoke_port = _get_smoke_setting("SERVER_PORT", str(DEFAULT_PORT))
+    smoke_app_config = _get_smoke_setting("APP_CONFIG", "development")
+    smoke_use_https = _get_smoke_bool("USE_HTTPS", False)
+
+    env["USE_HTTPS"] = "1" if smoke_use_https else "0"
+    env["SERVER_HOST"] = smoke_host
+    env["HOST"] = smoke_host
+    env["SERVER_PORT"] = smoke_port
+    env["PORT"] = smoke_port
+    env["APP_CONFIG"] = smoke_app_config
+    env["APP_USE_RELOADER"] = "0"
+
+    # 0.0.0.0 is a listen address, not connectable — always use 127.0.0.1 for the client
+    connect_host = DEFAULT_HOST if smoke_host == "0.0.0.0" else smoke_host
+    scheme = "https" if smoke_use_https else "http"
+    url = f"{scheme}://{connect_host}:{smoke_port}/"
 
     python_bin = _find_python(repo_root)
 
     timestamp = time.strftime("%Y%m%d-%H%M%S")
     log_path = Path(
-        os.environ.get(
-            "SMOKE_LOG_PATH",
+        _get_smoke_setting(
+            "LOG_PATH",
             str(DEFAULT_LOG_DIR / f"smoke-server-{timestamp}.log"),
         )
     )
