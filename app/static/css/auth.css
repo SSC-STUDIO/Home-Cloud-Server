@@ -1,3 +1,13 @@
+/* 修复未登录用户布局问题 */
+.app-guest .app-shell {
+    display: block; /* 覆盖 grid 布局 */
+}
+
+.app-guest .content {
+    width: 100%;
+    max-width: 100%;
+}
+
 .auth-page .content {
     padding: 2rem;
 }
