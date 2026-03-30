@@ -29,10 +29,10 @@ def _get_initial_admin_password(app) -> tuple[str, bool]:
 def initialize_db(app):
     db.init_app(app)
     
-    # 配置数据库引擎优化
-    configure_db_engine(app, db)
-    
     with app.app_context():
+        # 配置数据库引擎优化 (需要在 app context 内)
+        configure_db_engine(app, db)
+        
         db.create_all()
         
         # 创建数据库索引

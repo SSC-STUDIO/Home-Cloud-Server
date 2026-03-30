@@ -13,6 +13,7 @@
 
 .auth-shell {
     width: min(1120px, 100%);
+    margin: 0 auto; /* 添加水平居中 */
     display: grid;
     grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
     gap: 1.25rem;
