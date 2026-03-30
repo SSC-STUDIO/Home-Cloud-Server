@@ -1,86 +1,158 @@
 {% extends 'base.html' %}
 {% import 'auth/partials/_auth_macros.html' as auth_macros %}
 
-{% block title %}Login - Home Cloud Server{% endblock %}
+{% block title %}登录 - Home Cloud Server{% endblock %}
 
 {% block body_class %}{{ super() }} auth-page{% endblock %}
 
 {% block content %}
 {% set showcase_stats = [
-    ('Workspace', 'Files, folders, uploads, and recovery tools stay in one session.'),
-    ('Access', 'Your role determines whether admin controls appear after sign-in.'),
-    ('Search', 'Look across the full library or filter only the current folder when needed.')
+    ('工作区', '文件、文件夹、上传和恢复工具集中管理。'),
+    ('权限控制', '根据角色显示不同的功能，普通用户与管理员界面分离。'),
+    ('全文搜索', '支持跨库搜索或仅在当前文件夹内筛选。')
 ] %}
 {% set showcase_features = [
-    ('folder-open', 'Return straight to file management instead of navigating through multiple pages.'),
-    ('clock-rotate-left', 'Use recycle bin and transfer history without changing tools.'),
-    ('server', 'Admin accounts can move from storage work into system operations from the same login.')
+    ('folder-open', '登录后直接进入文件管理，无需多余导航。'),
+    ('clock-rotate-left', '回收站和传输历史集成在同一界面。'),
+    ('server', '管理员可在同一登录会话中切换至系统管理。')
 ] %}
-<section class="auth-layout">
-    <div class="auth-shell auth-shell--stacked">
-        <div class="auth-panel auth-form-panel">
+<section class="auth-layout" aria-label="登录页面">
+    <div class="auth-shell">
+        <div class="auth-panel auth-form-panel" role="main" aria-labelledby="login-heading">
             {{ auth_macros.render_form_intro(
-                'Secure access',
-                'Welcome back',
-                'Enter your account details to return to your workspace.'
+                '安全访问',
+                '欢迎回来',
+                '请输入您的账户信息以返回工作区。'
             ) }}
 
-            <form action="{{ url_for('auth.login') }}" method="POST">
+            {# 错误提示区域 #}
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="auth-alerts" role="alert" aria-live="polite">
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                                <i class="fas fa-{{ 'exclamation-circle' if category == 'error' or category == 'danger' else 'check-circle' if category == 'success' else 'info-circle' }} me-2"></i>
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭"></button>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <form action="{{ url_for('auth.login') }}" method="POST" novalidate>
+                {# CSRF 保护令牌 #}
+                {{ csrf_token() }}
+                
+                <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+
                 <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <div class="input-group">
-                        <span class="input-group-text">
+                    <label for="username" class="form-label">
+                        <i class="fas fa-user me-1 text-muted"></i>用户名
+                    </label>
+                    <div class="input-group has-validation">
+                        <span class="input-group-text" aria-hidden="true">
                             <i class="fas fa-user"></i>
                         </span>
-                        <input type="text" class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+                        <input 
+                            type="text" 
+                            class="form-control" 
+                            id="username" 
+                            name="username" 
+                            autocomplete="username" 
+                            required 
+                            autofocus
+                            placeholder="请输入用户名"
+                            minlength="3"
+                            maxlength="64"
+                            pattern="[a-zA-Z0-9_-]+"
+                            title="用户名只能包含字母、数字、下划线和连字符"
+                            aria-required="true"
+                            aria-describedby="username-help"
+                        >
+                        <div class="invalid-feedback">请输入有效的用户名（3-64个字符）</div>
                     </div>
+                    <div id="username-help" class="form-text text-muted">用户名只能包含字母、数字、下划线和连字符</div>
                 </div>
 
                 <div class="mb-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
-                        <label for="password" class="form-label mb-0">Password</label>
-                        <a href="{{ url_for('auth.forgot_password') }}" class="small">Forgot password?</a>
+                        <label for="password" class="form-label mb-0">
+                            <i class="fas fa-lock me-1 text-muted"></i>密码
+                        </label>
+                        <a href="{{ url_for('auth.forgot_password') }}" class="small text-decoration-none">忘记密码？</a>
                     </div>
-                    <div class="input-group">
-                        <span class="input-group-text">
+                    <div class="input-group has-validation">
+                        <span class="input-group-text" aria-hidden="true">
                             <i class="fas fa-lock"></i>
                         </span>
-                        <input type="password" class="form-control" id="password" name="password" autocomplete="current-password" required>
-                        <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Toggle password visibility">
-                            <i class="fas fa-eye"></i>
+                        <input 
+                            type="password" 
+                            class="form-control" 
+                            id="password" 
+                            name="password" 
+                            autocomplete="current-password" 
+                            required
+                            placeholder="请输入密码"
+                            minlength="8"
+                            aria-required="true"
+                            aria-describedby="password-help"
+                        >
+                        <button 
+                            class="btn btn-outline-secondary" 
+                            type="button" 
+                            id="togglePassword" 
+                            aria-label="切换密码可见性"
+                            tabindex="-1"
+                        >
+                            <i class="fas fa-eye" aria-hidden="true"></i>
                         </button>
+                        <div class="invalid-feedback">请输入密码（至少8个字符）</div>
                     </div>
+                    <div id="password-help" class="form-text text-muted">密码区分大小写</div>
                 </div>
 
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
                     <div class="form-check mb-0">
-                        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me">
-                        <label class="form-check-label" for="rememberMe">Remember this device</label>
+                        <input 
+                            type="checkbox" 
+                            class="form-check-input" 
+                            id="rememberMe" 
+                            name="remember_me"
+                        >
+                        <label class="form-check-label" for="rememberMe">记住此设备</label>
                     </div>
-                    <span class="auth-helper-note">Protected session and role-based routes.</span>
+                    <span class="auth-helper-note">
+                        <i class="fas fa-shield-alt me-1"></i>受保护的会话和基于角色的路由
+                    </span>
                 </div>
 
                 <div class="d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg">Sign In</button>
+                    <button type="submit" class="btn btn-primary btn-lg" id="login-btn">
+                        <span class="btn-text">登录</span>
+                        <span class="btn-loading d-none">
+                            <i class="fas fa-circle-notch fa-spin me-2"></i>登录中...
+                        </span>
+                    </button>
                 </div>
             </form>
 
             <div class="auth-links">
-                <span>Need a new account? <a href="{{ url_for('auth.register') }}">Create one</a></span>
-                <span>Private server access only</span>
+                <span>还没有账户？<a href="{{ url_for('auth.register') }}">创建一个</a></span>
+                <span class="text-muted"><i class="fas fa-lock me-1"></i>私有服务器访问</span>
             </div>
 
             <div class="auth-assurance">
                 <i class="fas fa-shield-alt"></i>
-                <span>Your files remain behind the server configuration and permissions you already control.</span>
+                <span>您的文件受到服务器配置和权限控制保护，数据保留在您的私有基础设施中。</span>
             </div>
         </div>
 
         {{ auth_macros.render_showcase(
             'shield-halved',
-            'Private infrastructure',
-            'Sign in first. Then manage the server with context.',
-            'The workspace is designed around the tasks you perform after login, not around marketing copy before it.',
+            '私有基础设施',
+            '先登录，再管理服务器。',
+            '工作区围绕登录后执行的任务设计，而非登录前的营销文案。',
             showcase_stats,
             showcase_features
         ) }}
@@ -90,4 +162,45 @@
 
 {% block scripts %}
 <script defer src="{{ url_for('static', filename='js/password.js') }}"></script>
+<script>
+// 表单验证和提交处理
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const loginBtn = document.getElementById('login-btn');
+    const btnText = loginBtn.querySelector('.btn-text');
+    const btnLoading = loginBtn.querySelector('.btn-loading');
+    
+    // Bootstrap 表单验证
+    form.addEventListener('submit', function(event) {
+        if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+        } else {
+            // 显示加载状态
+            loginBtn.disabled = true;
+            btnText.classList.add('d-none');
+            btnLoading.classList.remove('d-none');
+        }
+        form.classList.add('was-validated');
+    });
+    
+    // 实时验证反馈
+    const inputs = form.querySelectorAll('input[required]');
+    inputs.forEach(input => {
+        input.addEventListener('blur', function() {
+            if (this.value && !this.checkValidity()) {
+                this.classList.add('is-invalid');
+            } else {
+                this.classList.remove('is-invalid');
+            }
+        });
+        
+        input.addEventListener('input', function() {
+            if (this.classList.contains('is-invalid') && this.checkValidity()) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
+});
+</script>
 {% endblock %}
