@@ -2,23 +2,21 @@
 
 {% block title %}400 - Bad Request{% endblock %}
 
+{% block body_class %}{{ super() }} error-page{% endblock %}
+
 {% block content %}
-<div class="container text-center py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <img src="{{ url_for('static', filename='images/404.svg') }}" alt="400 Error" class="img-fluid mb-4" style="max-height: 300px;">
-            <h1 class="display-4 fw-bold text-danger mb-3">400</h1>
-            <h2 class="mb-4">Bad Request</h2>
-            <p class="lead mb-5">The server could not understand the request due to invalid syntax.</p>
-            <div class="d-flex justify-content-center gap-3">
-                <a href="{{ url_for('files.index') }}" class="btn btn-primary">
-                    <i class="fas fa-home me-2"></i> Back to Home
-                </a>
-                <button onclick="window.history.back()" class="btn btn-outline-secondary">
-                    <i class="fas fa-arrow-left me-2"></i> Go Back
-                </button>
-            </div>
+<section class="error-shell">
+    <div class="error-card">
+        <div class="error-card__icon error-card__icon--amber">
+            <i class="fas fa-circle-exclamation"></i>
+        </div>
+        <div class="error-card__code error-card__code--warn">400</div>
+        <h2>Bad Request</h2>
+        <p>The server could not understand the request due to invalid syntax. Check the URL or form data and try again.</p>
+        <div class="error-card__actions">
+            <a href="{{ url_for('files.index') }}" class="btn btn-primary"><i class="fas fa-home me-2"></i>Back to Home</a>
+            <button onclick="window.history.back()" class="btn btn-light"><i class="fas fa-arrow-left me-2"></i>Go Back</button>
         </div>
     </div>
-</div>
-{% endblock %} 
+</section>
+{% endblock %}

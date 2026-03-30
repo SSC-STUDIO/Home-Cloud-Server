@@ -2,53 +2,21 @@
 
 {% block title %}404 - Page Not Found{% endblock %}
 
-{% block styles %}
-<style>
-    .error-container {
-        text-align: center;
-        padding: 100px 0;
-    }
-    
-    .error-code {
-        font-size: 120px;
-        font-weight: 700;
-        color: var(--primary-color);
-        margin-bottom: 0;
-        opacity: 0.8;
-    }
-    
-    .error-title {
-        font-size: 32px;
-        font-weight: 500;
-        margin: 15px 0;
-    }
-    
-    .error-description {
-        font-size: 18px;
-        color: #888;
-        max-width: 500px;
-        margin: 0 auto 30px;
-    }
-    
-    .error-image {
-        max-width: 250px;
-        margin-bottom: 20px;
-    }
-</style>
-{% endblock %}
+{% block body_class %}{{ super() }} error-page{% endblock %}
 
 {% block content %}
-<div class="container text-center py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <img src="{{ url_for('static', filename='images/404.svg') }}" alt="404 Error" class="img-fluid mb-4" style="max-height: 300px;">
-            <h1 class="display-4 fw-bold text-danger mb-3">404</h1>
-            <h2 class="mb-4">Page Not Found</h2>
-            <p class="lead mb-5">The page you are looking for might have been removed, had its name changed, or is temporarily unavailable.</p>
-            <a href="{{ url_for('files.index') }}" class="btn btn-primary">
-                <i class="fas fa-home me-2"></i> Back to Home
-            </a>
+<section class="error-shell">
+    <div class="error-card">
+        <div class="error-card__icon error-card__icon--blue">
+            <i class="fas fa-compass"></i>
+        </div>
+        <div class="error-card__code">404</div>
+        <h2>Page Not Found</h2>
+        <p>The page you're looking for may have been moved, renamed, or no longer exists. Double-check the URL or head back home.</p>
+        <div class="error-card__actions">
+            <a href="{{ url_for('files.index') }}" class="btn btn-primary"><i class="fas fa-home me-2"></i>Back to Home</a>
+            <button onclick="window.history.back()" class="btn btn-light"><i class="fas fa-arrow-left me-2"></i>Go Back</button>
         </div>
     </div>
-</div>
-{% endblock %} 
+</section>
+{% endblock %}

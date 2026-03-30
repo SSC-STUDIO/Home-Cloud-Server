@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,6 +23,9 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/files.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
     {% block styles %}{% endblock %}
+    <script>
+        (function(){var s=localStorage.getItem("hc-theme");if(s==="dark"||(!s&&window.matchMedia("(prefers-color-scheme:dark)").matches)){document.documentElement.setAttribute("data-theme","dark")}else{document.documentElement.setAttribute("data-theme","light")}})();
+    </script>
 </head>
 <body class="{% block body_class %}{% if session.get('user_id') %}app-authenticated{% else %}app-guest{% endif %}{% endblock %}">
     <a class="skip-link" href="#mainContent">Skip to content</a>
@@ -38,9 +41,20 @@
                         <span class="site-brand-subtitle">Private file control</span>
                     </span>
                 </a>
-                <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
+                <div class="d-flex align-items-center gap-2 order-lg-last">
+                    {% if session.get('user_id') %}
+                    <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Toggle sidebar">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    {% endif %}
+                    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode">
+                        <i class="fas fa-moon"></i>
+                        <i class="fas fa-sun"></i>
+                    </button>
+                    <button class="navbar-toggler border-0 shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                </div>
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2">
                         {% if session.get('user_id') %}
@@ -84,8 +98,12 @@
 
         <div class="app-shell">
             {% if session.get('user_id') %}
+            <div class="sidebar-overlay" id="sidebarOverlay"></div>
             <aside class="sidebar" id="appSidebar">
                 <div class="sidebar-inner">
+                    <button class="sidebar-close d-none" id="sidebarClose" type="button" aria-label="Close sidebar">
+                        <i class="fas fa-xmark"></i>
+                    </button>
                     <div class="sidebar-label">Workspace</div>
                     <ul class="nav flex-column">
                         <li class="nav-item">

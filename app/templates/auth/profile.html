@@ -3,17 +3,26 @@
 {% block title %}User Profile - Home Cloud Server{% endblock %}
 
 {% block content %}
-<div class="container">
-    <h2 class="mb-4"><i class="fas fa-id-card me-2"></i>User Profile</h2>
-    
-    <div class="row">
-        <!-- User Information -->
-        <div class="col-lg-8">
-            <div class="card shadow-sm mb-4">
+<div class="profile-shell">
+    <section class="profile-hero">
+        <div class="profile-hero__content">
+            <div class="profile-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+            <div>
+                <h1>{{ user.username }}</h1>
+                <p><i class="fas fa-at me-1"></i>{{ user.email }} &middot; <span class="text-capitalize">{{ user.role }}</span></p>
+            </div>
+        </div>
+    </section>
+
+    <div class="profile-grid">
+        <div class="profile-stat-grid">
+            <article class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-user me-2"></i>Account Information</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-3">
                     <form method="POST" action="{{ url_for('auth.profile') }}">
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
@@ -36,9 +45,9 @@
                             <label for="last_login" class="form-label">Last Login</label>
                             <input type="text" class="form-control" id="last_login" value="{{ user.last_login.strftime('%Y-%m-%d %H:%M:%S') if user.last_login else 'Never' }}" readonly>
                         </div>
-                        
+
                         <hr class="my-4">
-                        
+
                         <h5 class="mb-3">Change Password</h5>
                         <div class="mb-3">
                             <label for="current_password" class="form-label">Current Password</label>
@@ -52,67 +61,52 @@
                             <label for="confirm_password" class="form-label">Confirm New Password</label>
                             <input type="password" class="form-control" id="confirm_password" placeholder="Confirm new password">
                         </div>
-                        
+
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
                             <button type="submit" class="btn btn-primary">Save Changes</button>
                         </div>
                     </form>
                 </div>
-            </div>
+            </article>
         </div>
-        
-        <!-- Storage Information -->
-        <div class="col-lg-4">
-            <div class="card shadow-sm mb-4">
+
+        <div class="profile-stat-grid">
+            <article class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-hdd me-2"></i>Storage Usage</h5>
                 </div>
-                <div class="card-body">
-                    <div class="mb-3">
-                        <!-- Storage Progress Bar -->
-                        <h6 class="card-subtitle mb-2 text-muted">Storage Used: {{ (user.storage_used / (1024*1024*1024))|round(2) }} GB / {{ (user.storage_quota / (1024*1024*1024))|round(2) }} GB</h6>
-                        <div class="progress" style="height: 20px;">
-                            <div class="progress-bar {% if storage_used_percent > 90 %}bg-danger{% elif storage_used_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
-                                 role="progressbar" 
-                                 style="width: {{ storage_used_percent }}%;" 
-                                 aria-valuenow="{{ storage_used_percent }}" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">
-                                {{ storage_used_percent|round(1) }}%
-                            </div>
-                        </div>
+                <div class="card-body p-3">
+                    <span class="d-block mb-2" style="color:var(--muted-color);font-size:0.92rem;">{{ (user.storage_used / (1024*1024*1024))|round(2) }} GB / {{ (user.storage_quota / (1024*1024*1024))|round(2) }} GB</span>
+                    <div class="progress" style="height:0.9rem;border-radius:999px;background:rgba(148,163,184,0.25);">
+                        <div class="progress-bar {% if storage_used_percent > 90 %}bg-danger{% elif storage_used_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" role="progressbar" style="width:{{ storage_used_percent }}%;border-radius:999px;" aria-valuenow="{{ storage_used_percent }}" aria-valuemin="0" aria-valuemax="100">{{ storage_used_percent|round(1) }}%</div>
                     </div>
-                    
-                    <div class="text-center mt-4">
-                        <a href="{{ url_for('files.index') }}" class="btn btn-primary">
-                            <i class="fas fa-folder me-2"></i>Manage Files
-                        </a>
+                    <div class="text-center mt-3">
+                        <a href="{{ url_for('files.index') }}" class="btn btn-primary btn-sm"><i class="fas fa-folder me-2"></i>Manage Files</a>
                     </div>
                 </div>
-            </div>
-            
-            <!-- User Stats -->
-            <div class="card shadow-sm">
+            </article>
+
+            <article class="card">
                 <div class="card-header">
                     <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Account Statistics</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-0">
                     <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-3">
                             Total Files
                             <span class="badge bg-primary rounded-pill" id="totalFiles">{{ files_count }}</span>
                         </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-3">
                             Total Folders
                             <span class="badge bg-primary rounded-pill" id="totalFolders">{{ folders_count }}</span>
                         </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-3">
                             Last Upload
                             <span class="badge bg-secondary" id="lastUpload">{{ last_upload_date or 'Never' }}</span>
                         </li>
                     </ul>
                 </div>
-            </div>
+            </article>
         </div>
     </div>
 </div>

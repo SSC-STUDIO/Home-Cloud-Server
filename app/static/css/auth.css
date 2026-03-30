@@ -318,3 +318,92 @@
     margin-top: 0.15rem;
     color: var(--primary-color);
 }
+
+/* ── Auth Animations ─────────────────────────── */
+
+.auth-form-panel {
+    animation: auth-slide-up 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.auth-showcase {
+    animation: auth-slide-up 0.55s cubic-bezier(0.4, 0, 0.2, 1) 0.08s both;
+}
+
+@keyframes auth-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(18px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.auth-form-panel .btn-primary {
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+}
+
+.auth-form-panel .btn-primary:active {
+    transform: scale(0.97);
+}
+
+/* ── Auth Dark Mode ──────────────────────────── */
+
+[data-theme="dark"] .auth-form-panel {
+    background:
+        linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.88));
+}
+
+[data-theme="dark"] .auth-form-panel::before {
+    background:
+        radial-gradient(circle at top left, rgba(91, 143, 255, 0.08), transparent 26%),
+        radial-gradient(circle at bottom right, rgba(251, 146, 60, 0.06), transparent 28%);
+}
+
+[data-theme="dark"] .auth-panel {
+    background: rgba(30, 41, 59, 0.88);
+    border-color: rgba(148, 163, 184, 0.12);
+}
+
+[data-theme="dark"] .auth-form-panel .input-group {
+    background: rgba(15, 23, 42, 0.72);
+    box-shadow:
+        inset 0 0 0 1px rgba(148, 163, 184, 0.1),
+        0 10px 22px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] .auth-eyebrow {
+    color: var(--muted-color);
+}
+
+[data-theme="dark"] .auth-form-title {
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .auth-form-copy {
+    color: var(--muted-color);
+}
+
+[data-theme="dark"] .auth-links {
+    color: var(--muted-color);
+}
+
+[data-theme="dark"] .auth-assurance {
+    background: rgba(15, 23, 42, 0.9);
+    border-color: rgba(91, 143, 255, 0.1);
+    color: var(--muted-color);
+}
+
+[data-theme="dark"] .auth-helper-note {
+    color: var(--muted-color);
+}
+
+[data-theme="dark"] .auth-logo {
+    background:
+        linear-gradient(135deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.88));
+    border-color: rgba(91, 143, 255, 0.14);
+    box-shadow:
+        0 16px 28px rgba(0, 0, 0, 0.22),
+        inset 0 0 0 1px rgba(148, 163, 184, 0.08);
+}

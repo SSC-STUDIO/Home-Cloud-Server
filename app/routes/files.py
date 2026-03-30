@@ -5,11 +5,13 @@ from app.models.file import File, Folder
 from app.models.system_setting import SystemSetting
 from app.models.activity import Activity
 from app.routes.auth import login_required
+from requests.adapters import HTTPAdapter
 from werkzeug.utils import secure_filename
 import ipaddress
 import os
 import socket
 import uuid
+from contextlib import closing
 from datetime import datetime
 import mimetypes
 import time
@@ -264,18 +266,106 @@ def validate_remote_download_url(file_url):
     if not hostname:
         raise ValueError('Invalid URL')
 
+    return parsed
+
+
+def resolve_remote_connect_target(parsed_url):
+    hostname = parsed_url.hostname
+    if not hostname:
+        raise ValueError('Invalid URL')
+
+    connect_port = parsed_url.port
+    if connect_port is None:
+        connect_port = 443 if parsed_url.scheme == 'https' else 80
+
     try:
-        resolved_addresses = socket.getaddrinfo(hostname, parsed.port or None, type=socket.SOCK_STREAM)
+        resolved_addresses = socket.getaddrinfo(hostname, connect_port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise ValueError('Invalid URL') from exc
 
     if not resolved_addresses:
         raise ValueError('Invalid URL')
 
-    for address_info in resolved_addresses:
-        resolved_ip = address_info[4][0]
+    allowed_target = None
+    blocked_detected = False
+    for family, socktype, proto, canonname, sockaddr in resolved_addresses:
+        resolved_ip = sockaddr[0]
         if is_blocked_remote_ip(resolved_ip):
-            raise ValueError('Blocked remote address')
+            blocked_detected = True
+            continue
+
+        if allowed_target is None:
+            allowed_target = {
+                'family': family,
+                'socktype': socktype,
+                'proto': proto,
+                'canonname': canonname,
+                'sockaddr': sockaddr,
+                'resolved_ip': resolved_ip,
+                'connect_port': connect_port,
+                'hostname': hostname,
+            }
+
+    if blocked_detected:
+        raise ValueError('Blocked remote address')
+
+    if allowed_target is None:
+        raise ValueError('Invalid URL')
+
+    return allowed_target
+
+
+def prepare_remote_request(request_url):
+    parsed = validate_remote_download_url(request_url)
+    target = resolve_remote_connect_target(parsed)
+    direct_url = build_direct_connect_url(parsed, target['resolved_ip'], target['connect_port'])
+
+    return {
+        'parsed_url': parsed,
+        'target': target,
+        'direct_url': direct_url,
+        'headers': {'Host': target['hostname']},
+        'verify': target['hostname'],
+    }
+
+
+def create_remote_download_session():
+    session = requests.Session()
+    session.trust_env = False
+    adapter = RemoteDownloadAdapter()
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+
+class RemoteDownloadAdapter(HTTPAdapter):
+    def init_poolmanager(self, *args, **kwargs):
+        kwargs.setdefault('assert_hostname', False)
+        return super().init_poolmanager(*args, **kwargs)
+
+    def send(self, request, **kwargs):
+        remote_request = prepare_remote_request(request.url)
+
+        request.headers['Host'] = remote_request['target']['hostname']
+        request.url = remote_request['direct_url']
+        kwargs['verify'] = remote_request['verify']
+        kwargs.pop('allow_redirects', None)
+        return super().send(request, **kwargs)
+
+
+def build_direct_connect_url(parsed_url, resolved_ip, connect_port):
+    if ':' in resolved_ip and not resolved_ip.startswith('['):
+        netloc_host = f'[{resolved_ip}]'
+    else:
+        netloc_host = resolved_ip
+
+    default_port = 443 if parsed_url.scheme == 'https' else 80
+    if connect_port != default_port:
+        netloc = f'{netloc_host}:{connect_port}'
+    else:
+        netloc = netloc_host
+
+    return parsed_url._replace(netloc=netloc).geturl()
 
 
 def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
@@ -1567,123 +1657,92 @@ def remote_download():
             except (TypeError, ValueError):
                 pass
 
-        with requests.get(file_url, stream=True, timeout=30, allow_redirects=False) as response:
-            if 300 <= response.status_code < 400:
-                redirect_target = response.headers.get('Location')
-                if not redirect_target:
-                    raise ValueError('Invalid URL')
-                redirect_url = requests.compat.urljoin(file_url, redirect_target)
-                validate_remote_download_url(redirect_url)
-                file_url = redirect_url
-                with requests.get(file_url, stream=True, timeout=30, allow_redirects=False) as redirected_response:
-                    redirected_response.raise_for_status()
-                    r = redirected_response
-                    # Try to get filename from Content-Disposition header
-                    cd_header = r.headers.get('Content-Disposition')
-                    if cd_header:
-                        from werkzeug.http import parse_options_header
-                        _, params = parse_options_header(cd_header)
-                        fname = params.get('filename') or params.get('filename*')
-                        if fname:
-                            filename = normalize_item_name(unquote(fname.split("''")[-1])) or filename
+        with create_remote_download_session() as remote_session:
+            current_url = file_url
+            response_obj = None
 
-                    # If still no extension, try to derive from content-type
-                    if filename and '.' not in filename and r.headers.get('Content-Type'):
-                        ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
-                        if ext:
-                            filename = normalize_item_name(f'{filename}{ext}') or filename
+            for _ in range(2):
+                remote_request = prepare_remote_request(current_url)
+                request_headers = dict(remote_request['headers'])
 
-                    if not filename:
-                        filename = 'downloaded_file'
+                with closing(
+                    remote_session.get(
+                        remote_request['direct_url'],
+                        headers=request_headers,
+                        stream=True,
+                        timeout=30,
+                        allow_redirects=False,
+                        verify=remote_request['verify'],
+                    )
+                ) as response:
+                    if 300 <= response.status_code < 400:
+                        redirect_target = response.headers.get('Location')
+                        if not redirect_target:
+                            raise ValueError('Invalid URL')
+                        current_url = requests.compat.urljoin(current_url, redirect_target)
+                        prepare_remote_request(current_url)
+                        continue
 
-                    if not allowed_file(filename):
-                        flash('File type not allowed', 'danger')
-                        return redirect(url_for('files.index'))
+                    response.raise_for_status()
+                    response_obj = response
+                    break
 
-                    file_size = int(r.headers.get('Content-Length', 0))
-                    user = User.query.get(user_id)
-                    if file_size and file_size > max_size:
-                        flash('File too large', 'danger')
-                        return redirect(url_for('files.index'))
+            if response_obj is None:
+                raise ValueError('Invalid URL')
 
-                    if file_size and not user.has_space_for_file(file_size):
-                        flash('Not enough storage space', 'danger')
-                        return redirect(url_for('files.index'))
+            r = response_obj
+            file_url = current_url
 
-                    if file_name_exists(user_id, current_folder.id, filename):
-                        name_prefix, ext = os.path.splitext(filename)
-                        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                        filename = f"{name_prefix}_{timestamp}{ext}"
+            # Try to get filename from Content-Disposition header
+            cd_header = r.headers.get('Content-Disposition')
+            if cd_header:
+                from werkzeug.http import parse_options_header
+                _, params = parse_options_header(cd_header)
+                fname = params.get('filename') or params.get('filename*')
+                if fname:
+                    filename = normalize_item_name(unquote(fname.split("''")[-1])) or filename
 
-                    storage_filename = build_storage_filename(filename)
-                    folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
-                    os.makedirs(folder_path, exist_ok=True)
-                    save_path = os.path.join(folder_path, storage_filename)
+            # If still no extension, try to derive from content-type
+            if filename and '.' not in filename and r.headers.get('Content-Type'):
+                ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
+                if ext:
+                    filename = normalize_item_name(f'{filename}{ext}') or filename
 
-                    downloaded = 0
-                    with open(save_path, 'wb') as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            if chunk:
-                                downloaded += len(chunk)
-                                if downloaded > max_size:
-                                    raise ValueError('File too large')
-                                f.write(chunk)
-            else:
-                response.raise_for_status()
-                r = response
+            if not filename:
+                filename = 'downloaded_file'
 
-                # Try to get filename from Content-Disposition header
-                cd_header = r.headers.get('Content-Disposition')
-                if cd_header:
-                    from werkzeug.http import parse_options_header
-                    _, params = parse_options_header(cd_header)
-                    fname = params.get('filename') or params.get('filename*')
-                    if fname:
-                        filename = normalize_item_name(unquote(fname.split("''")[-1])) or filename
+            if not allowed_file(filename):
+                flash('File type not allowed', 'danger')
+                return redirect(url_for('files.index'))
 
-                # If still no extension, try to derive from content-type
-                if filename and '.' not in filename and r.headers.get('Content-Type'):
-                    ext = mimetypes.guess_extension(r.headers['Content-Type'].split(';')[0].strip())
-                    if ext:
-                        filename = normalize_item_name(f'{filename}{ext}') or filename
+            file_size = int(r.headers.get('Content-Length', 0))
+            user = User.query.get(user_id)
+            if file_size and file_size > max_size:
+                flash('File too large', 'danger')
+                return redirect(url_for('files.index'))
 
-                if not filename:
-                    filename = 'downloaded_file'
+            if file_size and not user.has_space_for_file(file_size):
+                flash('Not enough storage space', 'danger')
+                return redirect(url_for('files.index'))
 
-                # Validate extension now
-                if not allowed_file(filename):
-                    flash('File type not allowed', 'danger')
-                    return redirect(url_for('files.index'))
+            if file_name_exists(user_id, current_folder.id, filename):
+                name_prefix, ext = os.path.splitext(filename)
+                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+                filename = f"{name_prefix}_{timestamp}{ext}"
 
-                # Try to get size
-                file_size = int(r.headers.get('Content-Length', 0))
-                user = User.query.get(user_id)
-                if file_size and file_size > max_size:
-                    flash('File too large', 'danger')
-                    return redirect(url_for('files.index'))
+            storage_filename = build_storage_filename(filename)
+            folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
+            os.makedirs(folder_path, exist_ok=True)
+            save_path = os.path.join(folder_path, storage_filename)
 
-                if file_size and not user.has_space_for_file(file_size):
-                    flash('Not enough storage space', 'danger')
-                    return redirect(url_for('files.index'))
-
-                if file_name_exists(user_id, current_folder.id, filename):
-                    name_prefix, ext = os.path.splitext(filename)
-                    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                    filename = f"{name_prefix}_{timestamp}{ext}"
-
-                storage_filename = build_storage_filename(filename)
-                folder_path = os.path.join(current_app.config['UPLOAD_FOLDER'], str(current_folder.id))
-                os.makedirs(folder_path, exist_ok=True)
-                save_path = os.path.join(folder_path, storage_filename)
-
-                downloaded = 0
-                with open(save_path, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=8192):
-                        if chunk:
-                            downloaded += len(chunk)
-                            if downloaded > max_size:
-                                raise ValueError('File too large')
-                            f.write(chunk)
+            downloaded = 0
+            with open(save_path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        downloaded += len(chunk)
+                        if downloaded > max_size:
+                            raise ValueError('File too large')
+                        f.write(chunk)
 
         if not file_size:
             file_size = os.path.getsize(save_path)

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project follows Semantic Versioning.
 
+## [0.1.11] - 2026-03-29
+
+### Fixed
+- Hardened `remote_download` SSRF protection by resolving each request target at connect time, blocking any hostname whose DNS answers include private, loopback, link-local, or reserved addresses before direct-IP fetches proceed.
+- Extended the same destination guard to manual redirect handling so remote downloads cannot be bounced from a public URL to an internal/private host.
+
 ## [0.1.10] - 2026-03-23
 
 ### Fixed

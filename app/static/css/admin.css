@@ -254,3 +254,35 @@
     border: 1px solid rgba(94, 112, 139, 0.12);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.78);
 }
+
+/* ── Admin Dark Mode ─────────────────────────── */
+
+[data-theme="dark"] .admin-action-tile {
+    background:
+        linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.9));
+    border-color: rgba(91, 143, 255, 0.1);
+    color: var(--text-color);
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.06);
+}
+
+[data-theme="dark"] .admin-action-tile:hover,
+[data-theme="dark"] .admin-action-tile:focus {
+    border-color: rgba(91, 143, 255, 0.2);
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.18);
+    color: var(--text-color);
+}
+
+[data-theme="dark"] .admin-chart-shell {
+    background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.96));
+    border-color: rgba(148, 163, 184, 0.08);
+    box-shadow: inset 0 1px 0 rgba(148, 163, 184, 0.04);
+}
+
+[data-theme="dark"] .admin-system-list .list-group-item {
+    border-color: rgba(148, 163, 184, 0.08);
+}
+
+[data-theme="dark"] .admin-panel-copy {
+    color: var(--muted-color);
+}

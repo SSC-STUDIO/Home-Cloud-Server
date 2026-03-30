@@ -2,58 +2,21 @@
 
 {% block title %}500 - Internal Server Error{% endblock %}
 
-{% block styles %}
-<style>
-    .error-container {
-        text-align: center;
-        padding: 100px 0;
-    }
-    
-    .error-code {
-        font-size: 120px;
-        font-weight: 700;
-        color: var(--accent-color);
-        margin-bottom: 0;
-        opacity: 0.8;
-    }
-    
-    .error-title {
-        font-size: 32px;
-        font-weight: 500;
-        margin: 15px 0;
-    }
-    
-    .error-description {
-        font-size: 18px;
-        color: #888;
-        max-width: 500px;
-        margin: 0 auto 30px;
-    }
-    
-    .error-image {
-        max-width: 250px;
-        margin-bottom: 20px;
-    }
-</style>
-{% endblock %}
+{% block body_class %}{{ super() }} error-page{% endblock %}
 
 {% block content %}
-<div class="container text-center py-5">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <img src="{{ url_for('static', filename='images/500.svg') }}" alt="500 Error" class="img-fluid mb-4" style="max-height: 300px;">
-            <h1 class="display-4 fw-bold text-danger mb-3">500</h1>
-            <h2 class="mb-4">Internal Server Error</h2>
-            <p class="lead mb-5">Something went wrong on our servers. We're working to fix the issue as soon as possible.</p>
-            <div class="d-flex justify-content-center gap-3">
-                <a href="{{ url_for('files.index') }}" class="btn btn-primary">
-                    <i class="fas fa-home me-2"></i> Back to Home
-                </a>
-                <button onclick="window.location.reload()" class="btn btn-outline-secondary">
-                    <i class="fas fa-sync-alt me-2"></i> Try Again
-                </button>
-            </div>
+<section class="error-shell">
+    <div class="error-card">
+        <div class="error-card__icon error-card__icon--red">
+            <i class="fas fa-triangle-exclamation"></i>
+        </div>
+        <div class="error-card__code error-card__code--danger">500</div>
+        <h2>Internal Server Error</h2>
+        <p>Something unexpected happened on the server. The issue has been logged and will be investigated. Try refreshing or come back shortly.</p>
+        <div class="error-card__actions">
+            <a href="{{ url_for('files.index') }}" class="btn btn-primary"><i class="fas fa-home me-2"></i>Back to Home</a>
+            <button onclick="window.location.reload()" class="btn btn-light"><i class="fas fa-rotate-right me-2"></i>Try Again</button>
         </div>
     </div>
-</div>
-{% endblock %} 
+</section>
+{% endblock %}
