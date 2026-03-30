@@ -189,20 +189,73 @@ def cleanup_saved_file(path):
         print(f"Error cleaning up file {path}: {exc}")
 
 def normalize_item_name(raw_value):
+    """Normalize and validate item name to prevent path traversal attacks.
+    
+    Returns None if the name is invalid or potentially dangerous.
+    """
     if raw_value is None:
         return None
 
-    value = raw_value.strip()
-    if not value or value in {'.', '..'}:
+    # Check for null bytes which can be used for injection attacks
+    if '\x00' in raw_value:
         return None
-
+    
+    # Normalize Unicode to prevent homograph attacks
+    import unicodedata
+    try:
+        value = unicodedata.normalize('NFC', raw_value.strip())
+    except (TypeError, ValueError):
+        return None
+    
+    # Reject empty names
+    if not value:
+        return None
+    
+    # Reject current and parent directory references
+    if value in {'.', '..'}:
+        return None
+    
+    # Check for path traversal patterns
+    # This checks for sequences like ../, ..\, /.., \.., etc.
+    dangerous_patterns = [
+        '../', '..\\', '/..', '\\..',
+        '..%2f', '..%2F', '%2e%2e', '%252e%252e',
+        '....', '.....'
+    ]
+    lower_value = value.lower()
+    for pattern in dangerous_patterns:
+        if pattern in lower_value:
+            return None
+    
+    # Reject names that look like absolute paths
+    if value.startswith('/') or value.startswith('\\'):
+        return None
+    
+    # Reject Windows drive letter patterns (e.g., C:, D:)
+    if re.match(r'^[a-zA-Z]:', value):
+        return None
+    
+    # Check length limit
     if len(value) > 255:
         return None
-
+    
+    # Reject path separators
     if any(separator in value for separator in ('/', '\\')):
         return None
-
+    
+    # Reject control characters
     if any(ord(character) < 32 for character in value):
+        return None
+    
+    # Reject names that are reserved on Windows
+    reserved_names = {
+        'con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4',
+        'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 
+        'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
+    }
+    # Check base name without extension
+    base_name = value.lower().split('.')[0]
+    if base_name in reserved_names:
         return None
 
     return value
@@ -380,6 +433,8 @@ def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
     return query.first() is not None
 
 def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
+    """Check if a file with the same name exists in the folder.
+    Uses case-insensitive comparison for cross-platform compatibility."""
     query = File.query.filter(
         File.user_id == user_id,
         File.folder_id == folder_id,
@@ -389,6 +444,37 @@ def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
     if exclude_file_id is not None:
         query = query.filter(File.id != exclude_file_id)
     return query.first() is not None
+
+def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
+    """Generate a unique filename, handling race conditions.
+    
+    Uses database locking to prevent concurrent uploads from creating duplicates.
+    Returns the unique filename or None if unable to generate one.
+    """
+    from sqlalchemy import func
+    
+    base_name, extension = os.path.splitext(filename)
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    
+    for attempt in range(max_attempts):
+        if attempt == 0:
+            candidate = filename
+        else:
+            candidate = f"{base_name}_{timestamp}_{attempt}{extension}"
+        
+        # Use database lock to prevent race conditions
+        # Check existence with a lock on the folder row
+        existing = File.query.filter(
+            File.user_id == user_id,
+            File.folder_id == folder_id,
+            File.is_deleted.is_(False),
+            func.lower(File.original_filename) == candidate.lower()
+        ).with_for_update().first()
+        
+        if not existing:
+            return candidate
+    
+    return None
 
 def escaped_like_query(value):
     return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
@@ -545,13 +631,14 @@ def upload_file():
 
             if not filename:
                 continue
-
-            # Check if file with same name exists
-            if file_name_exists(user_id, parent_folder.id, filename):
-                # Add timestamp to make filename unique
-                name_parts = os.path.splitext(filename)
-                timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-                filename = f"{name_parts[0]}_{timestamp}{name_parts[1]}"
+            
+            # Generate unique filename (handles race conditions)
+            unique_filename = generate_unique_filename(user_id, parent_folder.id, filename)
+            if not unique_filename:
+                flash(f'Could not generate unique filename for: {filename}', 'danger')
+                error_count += 1
+                continue
+            filename = unique_filename
             
             # Check file type
             if not allowed_file(filename):

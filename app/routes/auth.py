@@ -1,11 +1,13 @@
 from typing import Callable
-from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response, abort
+from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
 from app.models.user import User
 from app.models.system_setting import SystemSetting
 from functools import wraps
 from datetime import datetime, timedelta
 import secrets
+import re
 
 auth = Blueprint('auth', __name__)
 
@@ -165,10 +167,7 @@ def forgot_password() -> str:
         
         if user:
             # Generate a token
-            token = secrets.token_urlsafe(32)
-            
-            # In a real application, you would store this token in the database
-            # with an expiration time. For this demo, we're just using the token directly.
+            token = user.generate_reset_token()
             
             # Here you would send an email with the reset link
             reset_url = url_for('auth.reset_password', token=token, _external=True)
@@ -185,14 +184,26 @@ def forgot_password() -> str:
 
 @auth.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token: str) -> str:
-    # In a real application, you would validate the token against the database
-    # For this demo, we're accepting any token
+    # Find user with valid token
+    user = User.query.filter_by(reset_token=token).first()
+    
+    # Validate token
+    if not user or not user.verify_reset_token(token):
+        flash('Invalid or expired reset link. Please request a new one.', 'danger')
+        return redirect(url_for('auth.forgot_password'))
     
     if request.method == 'POST':
         password = request.form.get('password')
         
-        # In a real application, you would find the user associated with the token
-        # For this demo, we'll just show a success message
+        # Validate password strength
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long.', 'danger')
+            return render_template('auth/reset_password.html', token=token)
+        
+        # Update password
+        user.password_hash = generate_password_hash(password)
+        user.clear_reset_token()
+        db.session.commit()
         
         flash('Your password has been reset successfully. Please login with your new password.', 'success')
         return redirect(url_for('auth.login'))

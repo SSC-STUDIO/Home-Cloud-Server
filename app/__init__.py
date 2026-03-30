@@ -8,6 +8,8 @@ from app.utils.system_monitor import SystemMonitor
 from flask_migrate import Migrate
 import ssl
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_wtf.csrf import CSRFProtect
+csrf = CSRFProtect()
 
 def create_app(config_name='default'):
     if config_name == 'default':
@@ -48,6 +50,9 @@ def create_app(config_name='default'):
     
     # Initialize database
     db = initialize_db(app)
+    
+    # Initialize CSRF protection
+    csrf.init_app(app)
     
     # Initialize Flask-Migrate
     migrate = Migrate(app, db)
