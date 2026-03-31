@@ -80,7 +80,8 @@ def initialize_db(app):
             db.session.commit()
 
             if generated_password:
-                app.logger.warning('Initialized admin account with generated one-time password: %s', admin_password)
+                # SECURITY FIX: Don't log the actual password, only indicate it was generated
+                app.logger.warning('Initialized admin account with generated one-time password. Check secure password storage or reset password.')
             else:
                 app.logger.info('Initialized admin account from configured DEFAULT_ADMIN_PASSWORD')
 

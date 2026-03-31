@@ -10,21 +10,30 @@ from flask import send_file, Response
 from werkzeug.utils import secure_filename
 import uuid
 
-def get_file_hash(file_path: str) -> str:
+def get_file_hash(file_path: str, algorithm: str = 'sha256') -> str:
     """
-    Calculate MD5 hash of a file
+    Calculate hash of a file using secure algorithm
     
     Args:
         file_path: Path to the file
+        algorithm: Hash algorithm ('sha256' or 'md5' for legacy compatibility)
         
     Returns:
-        str: MD5 hash of the file
+        str: Hash of the file
+        
+    Note: MD5 is deprecated for security use. Use SHA-256 for new code.
     """
-    hash_md5 = hashlib.md5()
+    if algorithm.lower() == 'md5':
+        # SECURITY WARNING: MD5 is cryptographically broken and should not be used
+        # for security purposes. Kept for legacy compatibility only.
+        hasher = hashlib.md5()
+    else:
+        hasher = hashlib.sha256()
+    
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
-            hash_md5.update(chunk)
-    return hash_md5.hexdigest()
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 def get_mime_type(file_path: str) -> str:
     """
