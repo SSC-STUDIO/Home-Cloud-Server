@@ -1660,9 +1660,9 @@ def remote_download():
         with create_remote_download_session() as remote_session:
             current_url = file_url
             response_obj = None
+            remote_request = prepare_remote_request(current_url)
 
             for _ in range(2):
-                remote_request = prepare_remote_request(current_url)
                 request_headers = dict(remote_request['headers'])
 
                 with closing(
@@ -1680,7 +1680,7 @@ def remote_download():
                         if not redirect_target:
                             raise ValueError('Invalid URL')
                         current_url = requests.compat.urljoin(current_url, redirect_target)
-                        prepare_remote_request(current_url)
+                        remote_request = prepare_remote_request(current_url)
                         continue
 
                     response.raise_for_status()
