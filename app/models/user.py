@@ -17,6 +17,10 @@ class User(db.Model):
     last_login = db.Column(db.DateTime, nullable=True)
     trash_retention_days = db.Column(db.Integer, default=30)  # Default 30 days for trash retention
     
+    # Password reset token fields
+    reset_token = db.Column(db.String(64), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
+    
     @property
     def password(self) -> str:
         raise AttributeError('password is not a readable attribute')
@@ -47,4 +51,28 @@ class User(db.Model):
     
     def has_space_for_file(self, file_size: int) -> bool:
         """Check if user has enough space for a file of the given size"""
-        return (self.storage_used + file_size) <= self.storage_quota 
+        return (self.storage_used + file_size) <= self.storage_quota
+    
+    def generate_reset_token(self) -> str:
+        """Generate a password reset token"""
+        import secrets
+        from datetime import datetime, timedelta
+        self.reset_token = secrets.token_urlsafe(32)
+        self.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+        db.session.commit()
+        return self.reset_token
+    
+    def verify_reset_token(self, token: str) -> bool:
+        """Verify if the reset token is valid and not expired"""
+        from datetime import datetime
+        if self.reset_token != token:
+            return False
+        if not self.reset_token_expires:
+            return False
+        return datetime.utcnow() <= self.reset_token_expires
+    
+    def clear_reset_token(self) -> None:
+        """Clear the reset token after use"""
+        self.reset_token = None
+        self.reset_token_expires = None
+        db.session.commit() 

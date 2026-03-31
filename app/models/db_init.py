@@ -1,5 +1,6 @@
 from app.models import Activity, File, Folder, SystemMetric, SystemSetting, User
 from app.extensions import db
+from app.utils.db_optimization import configure_db_engine, create_database_indexes
 import secrets
 
 
@@ -29,7 +30,14 @@ def initialize_db(app):
     db.init_app(app)
     
     with app.app_context():
+        # 配置数据库引擎优化 (需要在 app context 内)
+        configure_db_engine(app, db)
+        
         db.create_all()
+        
+        # 创建数据库索引
+        create_database_indexes(db)
+        
         max_upload_size = str(app.config.get('MAX_CONTENT_LENGTH', 1073741824))
         default_trash_retention_days = str(app.config.get('DEFAULT_TRASH_RETENTION_DAYS', 30))
         auto_clean_trash = 'true' if app.config.get('AUTO_CLEAN_TRASH', True) else 'false'

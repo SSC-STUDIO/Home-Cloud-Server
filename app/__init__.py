@@ -8,6 +8,9 @@ from app.utils.system_monitor import SystemMonitor
 from flask_migrate import Migrate
 import ssl
 from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_wtf.csrf import CSRFProtect
+from app.utils.performance import init_cache, PerformanceMonitor
+csrf = CSRFProtect()
 
 def create_app(config_name='default'):
     if config_name == 'default':
@@ -49,6 +52,15 @@ def create_app(config_name='default'):
     # Initialize database
     db = initialize_db(app)
     
+    # Initialize cache
+    init_cache(app)
+    
+    # Initialize performance monitoring
+    PerformanceMonitor(app)
+    
+    # Initialize CSRF protection
+    csrf.init_app(app)
+    
     # Initialize Flask-Migrate
     migrate = Migrate(app, db)
     
@@ -65,11 +77,13 @@ def create_app(config_name='default'):
     from app.routes.files import files as files_blueprint
     from app.routes.admin import admin as admin_blueprint
     from app.routes.api import api as api_blueprint
+    from app.routes.files_optimized import files_optimized as files_optimized_blueprint
     
     app.register_blueprint(auth_blueprint)
     app.register_blueprint(files_blueprint)
     app.register_blueprint(admin_blueprint)
     app.register_blueprint(api_blueprint)
+    app.register_blueprint(files_optimized_blueprint)
     
     # Add template globals
     @app.context_processor

@@ -1,251 +1,652 @@
-@media (max-width: 1200px) {
+/* ==========================================================================
+   Desktop Large Screens (1200px+)
+   大屏桌面适配
+   ========================================================================== */
+
+@media (min-width: 1200px) {
+    /* 容器优化 */
+    .container {
+        max-width: 1140px;
+    }
+    
+    /* 工作区网格 */
     .workspace-metrics {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
-
+    
+    /* 侧边栏 */
+    .sidebar {
+        width: 280px;
+    }
+    
+    .sidebar-inner {
+        padding: 1.5rem;
+    }
+    
+    /* 内容区域 */
+    .content {
+        padding: 2rem;
+    }
+    
+    /* 认证页面 */
     .auth-shell {
-        grid-template-columns: minmax(0, 1fr);
+        gap: 2rem;
     }
-
+    
+    .auth-form-panel,
+    .auth-showcase {
+        padding: 2.5rem;
+    }
+    
+    /* 管理员网格 */
     .admin-metric-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
-
+    
     .admin-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+    
+    /* 表格优化 */
+    .workspace-table-wrap {
+        padding: 1rem 1.5rem 1.5rem;
+    }
+    
+    /* 工具栏 */
+    .workspace-toolbar {
+        gap: 1.25rem;
+    }
+    
+    /* 模态框 */
+    .modal-lg {
+        max-width: 900px;
+    }
+    
+    .modal-xl {
+        max-width: 1140px;
     }
 }
 
-@media (max-width: 992px) {
+/* ==========================================================================
+   Extra Large Screens (1400px+)
+   超大屏适配
+   ========================================================================== */
+
+@media (min-width: 1400px) {
+    /* 容器 */
+    .container {
+        max-width: 1320px;
+    }
+    
+    /* 应用外壳 */
     .app-shell {
-        grid-template-columns: 1fr;
+        gap: 2rem;
     }
-
-    .sidebar-toggle {
-        display: inline-flex;
-    }
-
+    
+    /* 侧边栏更宽 */
     .sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        bottom: 0;
-        width: 280px;
-        min-height: 100vh;
-        z-index: 1100;
-        transform: translateX(-100%);
-        transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: none;
+        width: 300px;
     }
-
-    .sidebar.is-open {
-        transform: translateX(0);
-        box-shadow: 16px 0 48px rgba(0, 0, 0, 0.28);
-    }
-
+    
     .sidebar-inner {
-        position: static;
-        padding-top: 1.2rem;
+        padding: 1.75rem;
     }
-
-    .sidebar .sidebar-close {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.2rem;
-        height: 2.2rem;
-        margin: 0 0.45rem 0.6rem auto;
-        border-radius: 10px;
-        border: 1px solid rgba(148, 163, 184, 0.16);
-        background: rgba(255, 255, 255, 0.06);
-        color: rgba(241, 245, 249, 0.82);
-        cursor: pointer;
-        transition: background 0.2s ease;
+    
+    .sidebar-link {
+        padding: 0.9rem 1.25rem;
+        font-size: 0.95rem;
     }
-
-    .sidebar .sidebar-close:hover {
-        background: rgba(255, 255, 255, 0.12);
-        color: #fff;
+    
+    /* 内容区域更大 */
+    .content {
+        padding: 2.5rem;
     }
-
-    .workspace-hero__top,
-    .workspace-card__header,
-    .workspace-feedback,
-    .admin-hero__content {
-        grid-template-columns: 1fr;
-        flex-direction: column;
-        align-items: stretch;
+    
+    /* 工作区网格 */
+    .workspace-metrics {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1.25rem;
     }
-
-    .workspace-toolbar {
-        grid-template-columns: 1fr;
+    
+    .workspace-metric {
+        padding: 1.5rem;
     }
+    
+    .workspace-metric__value {
+        font-size: 2rem;
+    }
+    
+    /* 认证页面 */
+    .auth-shell {
+        width: min(1280px, 95%);
+        gap: 2.5rem;
+    }
+    
+    .auth-form-panel,
+    .auth-showcase {
+        padding: 3rem;
+    }
+    
+    .auth-title {
+        font-size: 3rem;
+    }
+    
+    .auth-form-title {
+        font-size: 2.25rem;
+    }
+    
+    /* 管理员页面 */
+    .admin-metric-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1.25rem;
+    }
+    
+    .admin-metric {
+        padding: 1.5rem;
+    }
+    
+    .admin-metric__value {
+        font-size: 2rem;
+    }
+    
+    .admin-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.75rem;
+    }
+    
+    /* 表格 */
+    .workspace-table .table > :not(caption) > * > * {
+        padding: 1rem 1.25rem;
+    }
+    
+    /* 模态框 */
+    .modal-lg {
+        max-width: 1000px;
+    }
+    
+    .modal-xl {
+        max-width: 1320px;
+    }
+    
+    /* 文件列表 */
+    .file-item,
+    .folder-item {
+        padding: 1rem 1.25rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .file-icon,
+    .folder-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 22px;
+    }
+}
 
+/* ==========================================================================
+   Ultra Wide Screens (1600px+)
+   超宽屏适配
+   ========================================================================== */
+
+@media (min-width: 1600px) {
+    /* 容器 */
+    .container {
+        max-width: 1500px;
+    }
+    
+    .container-fluid {
+        padding-left: 3rem;
+        padding-right: 3rem;
+    }
+    
+    /* 侧边栏 */
+    .sidebar {
+        width: 320px;
+    }
+    
+    .sidebar-inner {
+        padding: 2rem;
+    }
+    
+    /* 内容区域 */
+    .content {
+        padding: 3rem;
+    }
+    
+    /* 工作区网格 - 5列 */
+    .workspace-metrics {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    
+    /* 认证页面 */
+    .auth-shell {
+        width: min(1400px, 90%);
+        gap: 3rem;
+    }
+    
+    .auth-panel {
+        border-radius: 32px;
+    }
+    
+    /* 管理员网格 - 5列 */
+    .admin-metric-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    
+    .admin-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 2rem;
+    }
+    
+    /* 表格 */
+    .workspace-table {
+        font-size: 0.95rem;
+    }
+    
+    /* 模态框 */
+    .modal-lg {
+        max-width: 1100px;
+    }
+    
+    .modal-xl {
+        max-width: 1500px;
+    }
+}
+
+/* ==========================================================================
+   4K Screens (1920px+)
+   4K屏幕适配
+   ========================================================================== */
+
+@media (min-width: 1920px) {
+    /* 根字体调整 */
+    :root {
+        --radius-xl: 36px;
+        --radius-lg: 28px;
+        --radius-md: 22px;
+    }
+    
+    /* 容器 */
+    .container {
+        max-width: 1600px;
+    }
+    
+    .container-fluid {
+        padding-left: 4rem;
+        padding-right: 4rem;
+    }
+    
+    /* 导航栏 */
+    .site-navbar {
+        padding: 0.75rem 0;
+    }
+    
+    .site-brand-mark {
+        width: 44px;
+        height: 44px;
+        font-size: 1.35rem;
+    }
+    
+    .site-brand-title {
+        font-size: 1.35rem;
+    }
+    
+    /* 侧边栏 */
+    .sidebar {
+        width: 340px;
+    }
+    
+    .sidebar-inner {
+        padding: 2.25rem;
+    }
+    
+    .sidebar-link {
+        padding: 1rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    .sidebar-link i {
+        font-size: 1.1rem;
+        width: 26px;
+    }
+    
+    /* 内容区域 */
+    .content {
+        padding: 3.5rem;
+    }
+    
+    /* 工作区 */
+    .workspace-hero__title {
+        font-size: 2rem;
+    }
+    
+    .workspace-hero__copy {
+        font-size: 1.1rem;
+    }
+    
+    .workspace-metrics {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .workspace-metric {
+        padding: 1.75rem;
+        border-radius: var(--radius-md);
+    }
+    
+    .workspace-metric__value {
+        font-size: 2.25rem;
+    }
+    
+    .workspace-metric__label {
+        font-size: 0.95rem;
+    }
+    
+    /* 认证页面 */
+    .auth-shell {
+        width: min(1500px, 85%);
+    }
+    
+    .auth-panel {
+        border-radius: 36px;
+    }
+    
+    .auth-form-panel,
+    .auth-showcase {
+        padding: 3.5rem;
+    }
+    
+    .auth-title {
+        font-size: 3.5rem;
+    }
+    
+    .auth-copy {
+        font-size: 1.15rem;
+    }
+    
+    /* 管理员 */
+    .admin-hero__title {
+        font-size: 2rem;
+    }
+    
+    .admin-metric-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 1.5rem;
+    }
+    
+    .admin-metric {
+        padding: 1.75rem;
+    }
+    
+    .admin-metric__value {
+        font-size: 2.25rem;
+    }
+    
+    .admin-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 2.25rem;
+    }
+    
+    /* 表格 */
+    .workspace-table {
+        font-size: 1rem;
+    }
+    
+    .workspace-table .table > :not(caption) > * > * {
+        padding: 1.1rem 1.5rem;
+    }
+    
+    /* 文件列表 */
+    .file-item,
+    .folder-item {
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1rem;
+        border-radius: 16px;
+    }
+    
+    .file-icon,
+    .folder-icon {
+        width: 52px;
+        height: 52px;
+        font-size: 24px;
+        margin-right: 18px;
+    }
+    
+    .file-name,
+    .folder-name {
+        font-size: 1.05rem;
+    }
+    
+    .file-meta,
+    .folder-meta {
+        font-size: 0.9rem;
+    }
+    
+    /* 模态框 */
+    .modal-lg {
+        max-width: 1200px;
+    }
+    
+    .modal-xl {
+        max-width: 1600px;
+    }
+    
+    .modal-dialog {
+        max-height: 90vh;
+    }
+    
+    /* 按钮 */
+    .btn {
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+    }
+    
+    .btn-lg {
+        padding: 1rem 2rem;
+        font-size: 1.1rem;
+    }
+    
+    /* 表单 */
+    .form-control,
+    .form-select {
+        padding: 0.875rem 1.25rem;
+        font-size: 1rem;
+    }
+    
+    .form-label {
+        font-size: 0.95rem;
+    }
+}
+
+/* ==========================================================================
+   Ultra HD 5K+ Screens (2560px+)
+   5K+超高清适配
+   ========================================================================== */
+
+@media (min-width: 2560px) {
+    /* 容器 */
+    .container {
+        max-width: 1800px;
+    }
+    
+    .container-fluid {
+        padding-left: 5rem;
+        padding-right: 5rem;
+    }
+    
+    /* 侧边栏 */
+    .sidebar {
+        width: 380px;
+    }
+    
+    .sidebar-inner {
+        padding: 2.5rem;
+    }
+    
+    /* 内容 */
+    .content {
+        padding: 4rem;
+    }
+    
+    /* 工作区 - 6列 */
+    .workspace-metrics {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 2rem;
+    }
+    
+    .workspace-metric {
+        padding: 2rem;
+    }
+    
+    .workspace-metric__value {
+        font-size: 2.5rem;
+    }
+    
+    /* 认证 */
+    .auth-shell {
+        width: min(1600px, 80%);
+    }
+    
+    .auth-form-panel,
+    .auth-showcase {
+        padding: 4rem;
+    }
+    
+    /* 管理员 - 6列 */
+    .admin-metric-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        gap: 2rem;
+    }
+    
+    .admin-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 2.5rem;
+    }
+    
+    /* 模态框 */
+    .modal-lg {
+        max-width: 1400px;
+    }
+    
+    .modal-xl {
+        max-width: 1800px;
+    }
+}
+
+/* ==========================================================================
+   Ultra Wide Monitors (3440px+ - 21:9 等超宽屏)
+   超宽显示器适配
+   ========================================================================== */
+
+@media (min-width: 3440px) {
+    /* 限制内容宽度，避免过度拉伸 */
+    .app-shell {
+        max-width: 2400px;
+        margin: 0 auto;
+    }
+    
+    /* 侧边栏固定宽度 */
+    .sidebar {
+        width: 400px;
+        flex-shrink: 0;
+    }
+    
+    /* 主要内容区域居中 */
+    .content {
+        max-width: 1800px;
+        margin: 0 auto;
+    }
+    
+    /* 保持合理的阅读宽度 */
+    .workspace-hero__copy,
+    .auth-copy,
+    .admin-hero__copy {
+        max-width: 65ch;
+    }
+}
+
+/* ==========================================================================
+   High DPI / Retina Displays
+   高分屏适配
+   ========================================================================== */
+
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    /* 图标和边框更清晰 */
+    .file-icon,
+    .folder-icon,
+    .sidebar-link i,
+    .btn i {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    
+    /* 细边框优化 */
+    .card,
+    .auth-panel,
+    .workspace-metric,
+    .admin-metric {
+        border-width: 0.5px;
+    }
+}
+
+/* ==========================================================================
+   Landscape Tablets (横屏平板)
+   ========================================================================== */
+
+@media (min-width: 1024px) and (max-width: 1366px) and (orientation: landscape) {
+    .sidebar {
+        width: 260px;
+    }
+    
+    .workspace-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    
+    .admin-metric-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+/* ==========================================================================
+   Reduced Motion (减少动画)
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar,
+    .modal-dialog,
+    .auth-panel,
+    .workspace-metric,
+    .admin-metric {
+        transition: none !important;
+    }
+}
+
+/* ==========================================================================
+   Print Styles (打印)
+   ========================================================================== */
+
+@media print {
+    .sidebar,
+    .site-navbar,
     .workspace-actions,
     .workspace-batch-actions,
-    .admin-hero__actions {
-        justify-content: start;
+    .sidebar-toggle,
+    .btn:not(.btn-primary) {
+        display: none !important;
     }
-
-    .workspace-local-tools {
-        justify-content: start;
+    
+    .content {
+        padding: 0 !important;
+        margin: 0 !important;
     }
-
-    .workspace-toolbar__block--view {
-        justify-items: start;
+    
+    .workspace-table {
+        font-size: 10pt;
     }
-
-    .workspace-active-filters {
-        order: 0;
-    }
-
-    .selection-status {
-        width: fit-content;
-    }
-
-    .workspace-feedback__dismiss {
-        justify-self: end;
-    }
-
-    .workspace-feedback__actions {
-        justify-content: start;
-    }
-
-    .search-results-shell__actions {
-        justify-content: start;
-    }
-
-    .footer-content {
-        flex-direction: column;
-        justify-content: center;
-    }
-}
-
-@media (max-width: 768px) {
-    .content,
-    .auth-page .content {
-        padding: 1rem;
-    }
-
-    .site-navbar .navbar-collapse {
-        padding-top: 1rem;
-    }
-
-    .site-navbar .navbar-nav {
-        gap: 0.6rem;
-        align-items: stretch;
-    }
-
-    .site-brand-subtitle {
-        display: none;
-    }
-
-    .workspace-hero .card-body,
-    .auth-showcase,
-    .auth-form-panel,
-    .admin-hero .card-body {
-        padding: 1.35rem;
-    }
-
-    .workspace-metrics,
-    .auth-stats,
-    .admin-metric-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .workspace-table-wrap {
-        padding: 0 0.85rem 0.85rem;
-    }
-
-    .workspace-table .table > :not(caption) > * > * {
-        padding: 0.8rem 0.75rem;
-    }
-
-    .workspace-actions .btn,
-    .workspace-toolbar__block--search .search-form,
-    .workspace-inline-filter,
-    .workspace-select,
-    .workspace-local-tools .btn {
-        width: 100%;
-    }
-
-    .workspace-toolbar {
-        gap: 0.85rem;
-    }
-
-    .workspace-local-tools {
-        width: 100%;
-    }
-
-    .workspace-active-filters {
-        width: 100%;
-    }
-
-    .workspace-filter-pill {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .upload-selection-summary__top,
-    .upload-selection-list li {
-        flex-direction: column;
-        align-items: start;
-    }
-
-    .workspace-toggle {
-        width: 100%;
-        justify-content: center;
-    }
-
-    .workspace-feedback {
-        text-align: left;
-    }
-
-    .item-actions {
-        flex-wrap: wrap;
-    }
-
-    .selection-status,
-    .filter-status {
-        width: 100%;
-        text-align: center;
-    }
-
-    .auth-links {
-        flex-direction: column;
-        align-items: start;
-    }
-
-    .auth-support-header {
-        flex-direction: column;
-        align-items: start;
-    }
-
-    .admin-action-tile {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (max-width: 576px) {
-    .modal-dialog {
-        margin: 0.75rem;
-    }
-
-    .workspace-card__header,
-    .workspace-hero .card-body,
-    .auth-showcase,
-    .auth-form-panel,
-    .admin-hero .card-body {
-        padding: 1rem;
-    }
-
-    .item-name {
-        align-items: start;
-    }
-
-    .content::before,
-    .site-shell::before {
-        inset: 0.65rem;
-        border-radius: 24px;
+    
+    .card {
+        border: 1pt solid #000;
+        box-shadow: none !important;
     }
 }

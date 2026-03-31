@@ -12,8 +12,13 @@ import psutil
 import os
 import uuid
 from werkzeug.utils import secure_filename
+from werkzeug.security import check_password_hash
+from app import csrf
 
 api = Blueprint('api', __name__)
+
+# Exempt all API routes from CSRF since they use Basic Auth
+csrf.exempt(api)
 
 def _safe_disk_usage(path: str):
     try:
@@ -198,6 +203,13 @@ def api_upload_file() -> jsonify:
     
     if uploaded_file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
+    
+    # Validate filename to prevent path traversal
+    from app.routes.files import normalize_item_name
+    safe_filename = normalize_item_name(uploaded_file.filename)
+    if not safe_filename:
+        return jsonify({'error': 'Invalid filename'}), 400
+    uploaded_file.filename = safe_filename
     
     # Resolve destination folder (default to root)
     if folder_id:

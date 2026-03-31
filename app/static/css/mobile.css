@@ -1,0 +1,715 @@
+/* ==========================================================================
+   Mobile-First Responsive Enhancements
+   全面移动端适配增强
+   ========================================================================== */
+
+/* ==========================================================================
+   1. 基础移动端优化 (Base Mobile Optimizations)
+   ========================================================================== */
+
+/* 触摸优化 */
+@media (pointer: coarse) {
+    /* 增大触摸目标 */
+    .btn,
+    .nav-link,
+    .dropdown-item,
+    .form-check-input,
+    .page-link,
+    .workspace-toggle,
+    .sidebar-link,
+    .item-actions .btn,
+    .file-item,
+    .folder-item {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* 移除 hover 效果（移动端无效） */
+    .btn:hover,
+    .nav-link:hover,
+    .file-item:hover,
+    .folder-item:hover {
+        transform: none;
+    }
+    
+    /* 触摸反馈 */
+    .btn:active,
+    .nav-link:active,
+    .file-item:active,
+    .folder-item:active,
+    .sidebar-link:active {
+        transform: scale(0.98);
+        opacity: 0.9;
+    }
+}
+
+/* 禁用文本选择（提升触摸体验） */
+.btn,
+.workspace-toggle,
+.sidebar-toggle,
+.item-actions .btn,
+.file-item,
+.folder-item {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ==========================================================================
+   2. 小屏幕手机适配 (Small Phones: < 576px)
+   ========================================================================== */
+
+@media (max-width: 576px) {
+    /* 全局调整 */
+    :root {
+        --radius-xl: 20px;
+        --radius-lg: 16px;
+        --radius-md: 12px;
+        --radius-sm: 10px;
+    }
+    
+    body {
+        font-size: 14px;
+    }
+    
+    /* 导航栏优化 */
+    .site-navbar {
+        padding: 0.5rem 0;
+    }
+    
+    .site-brand {
+        font-size: 1rem;
+    }
+    
+    .site-brand-mark {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+    
+    .site-brand-title {
+        font-size: 0.95rem;
+    }
+    
+    /* 内容区域 */
+    .content {
+        padding: 0.75rem;
+    }
+    
+    .app-shell {
+        gap: 0.75rem;
+    }
+    
+    /* 卡片优化 */
+    .card {
+        border-radius: var(--radius-md);
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    /* 工作区优化 */
+    .workspace-hero .card-body {
+        padding: 1rem;
+    }
+    
+    .workspace-hero__title {
+        font-size: 1.35rem;
+    }
+    
+    .workspace-hero__copy {
+        font-size: 0.9rem;
+    }
+    
+    /* 表格优化 - 横向滚动 */
+    .workspace-table-wrap {
+        padding: 0;
+        border-radius: var(--radius-sm);
+    }
+    
+    .workspace-table {
+        font-size: 0.85rem;
+    }
+    
+    .workspace-table .table > :not(caption) > * > * {
+        padding: 0.6rem 0.5rem;
+    }
+    
+    /* 文件列表优化 */
+    .file-item,
+    .folder-item {
+        padding: 0.75rem;
+        margin-bottom: 0.5rem;
+        border-radius: var(--radius-sm);
+    }
+    
+    .file-icon,
+    .folder-icon {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        margin-right: 10px;
+    }
+    
+    .file-name,
+    .folder-name {
+        font-size: 0.9rem;
+    }
+    
+    .file-meta,
+    .folder-meta {
+        font-size: 0.75rem;
+    }
+    
+    /* 工具栏优化 */
+    .workspace-toolbar {
+        gap: 0.6rem;
+    }
+    
+    .workspace-toolbar__block {
+        gap: 0.5rem;
+    }
+    
+    /* 按钮优化 */
+    .btn {
+        padding: 0.625rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .btn-lg {
+        padding: 0.75rem 1.25rem;
+        font-size: 1rem;
+    }
+    
+    .btn-sm {
+        padding: 0.4rem 0.75rem;
+        font-size: 0.8rem;
+    }
+    
+    /* 表单优化 */
+    .form-control,
+    .form-select {
+        padding: 0.625rem 0.875rem;
+        font-size: 16px; /* 防止 iOS 缩放 */
+    }
+    
+    .form-label {
+        font-size: 0.875rem;
+        margin-bottom: 0.375rem;
+    }
+    
+    /* 输入组优化 */
+    .input-group {
+        border-radius: var(--radius-sm);
+    }
+    
+    .input-group-text {
+        padding: 0.625rem 0.75rem;
+    }
+    
+    /* 模态框优化 */
+    .modal-dialog {
+        margin: 0.5rem;
+        max-width: calc(100% - 1rem);
+    }
+    
+    .modal-content {
+        border-radius: var(--radius-md);
+    }
+    
+    .modal-header {
+        padding: 1rem;
+    }
+    
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    .modal-footer {
+        padding: 0.75rem 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .modal-footer .btn {
+        width: 100%;
+        margin: 0;
+    }
+    
+    /* 下拉菜单优化 */
+    .dropdown-menu {
+        border-radius: var(--radius-sm);
+        font-size: 0.9rem;
+    }
+    
+    .dropdown-item {
+        padding: 0.625rem 1rem;
+    }
+    
+    /* 侧边栏优化 */
+    .sidebar {
+        width: 260px;
+    }
+    
+    .sidebar-link {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+    }
+    
+    .sidebar-link i {
+        width: 22px;
+        font-size: 0.95rem;
+    }
+    
+    /* 分页优化 */
+    .pagination {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+    
+    .page-link {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.85rem;
+        min-width: 36px;
+    }
+    
+    /* 警告/提示优化 */
+    .alert {
+        padding: 0.875rem 1rem;
+        font-size: 0.9rem;
+        border-radius: var(--radius-sm);
+    }
+    
+    /* 认证页面优化 */
+    .auth-layout {
+        padding: 0.5rem;
+        min-height: calc(100vh - 140px);
+    }
+    
+    .auth-form-panel,
+    .auth-showcase {
+        padding: 1.25rem;
+        border-radius: var(--radius-md);
+    }
+    
+    .auth-form-title {
+        font-size: 1.5rem;
+    }
+    
+    .auth-eyebrow {
+        font-size: 0.8rem;
+    }
+    
+    .auth-links {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    /* 管理员页面优化 */
+    .admin-hero .card-body {
+        padding: 1rem;
+    }
+    
+    .admin-metric-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    .admin-metric {
+        padding: 1rem;
+    }
+    
+    .admin-metric__value {
+        font-size: 1.5rem;
+    }
+    
+    /* 操作按钮组优化 */
+    .workspace-actions,
+    .workspace-batch-actions {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .workspace-actions .btn,
+    .workspace-batch-actions .btn {
+        flex: 1;
+        min-width: 100px;
+    }
+    
+    /* 面包屑优化 */
+    .breadcrumb {
+        font-size: 0.8rem;
+        flex-wrap: wrap;
+    }
+    
+    .breadcrumb-item + .breadcrumb-item::before {
+        padding: 0 0.3rem;
+    }
+    
+    /* 搜索优化 */
+    .search-form {
+        width: 100%;
+    }
+    
+    .search-form .form-control {
+        font-size: 16px; /* 防止 iOS 缩放 */
+    }
+    
+    /* 上传区域优化 */
+    .upload-area {
+        padding: 1.5rem 1rem;
+    }
+    
+    .upload-area__icon {
+        font-size: 2rem;
+    }
+    
+    .upload-area__title {
+        font-size: 1rem;
+    }
+    
+    .upload-area__copy {
+        font-size: 0.8rem;
+    }
+    
+    /* 进度条优化 */
+    .progress {
+        height: 6px;
+    }
+    
+    /* 标签优化 */
+    .badge {
+        font-size: 0.7rem;
+        padding: 0.3em 0.6em;
+    }
+    
+    /* 浮动操作按钮（移动端特有） */
+    .fab-container {
+        position: fixed;
+        bottom: 1rem;
+        right: 1rem;
+        z-index: 1050;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .fab {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+    
+    /* 底部导航栏（移动端特有） */
+    .mobile-bottom-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: var(--surface-strong);
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-around;
+        padding: 0.5rem 0;
+        z-index: 1040;
+        backdrop-filter: blur(12px);
+    }
+    
+    .mobile-bottom-nav__item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.25rem 0.75rem;
+        color: var(--muted-color);
+        font-size: 0.7rem;
+        text-decoration: none;
+        transition: color 0.2s ease;
+    }
+    
+    .mobile-bottom-nav__item i {
+        font-size: 1.1rem;
+    }
+    
+    .mobile-bottom-nav__item.active,
+    .mobile-bottom-nav__item:active {
+        color: var(--primary-color);
+    }
+    
+    /* 调整内容区域避免被底部导航遮挡 */
+    body.has-bottom-nav .content {
+        padding-bottom: 4rem;
+    }
+    
+    /* 全宽按钮 */
+    .btn-block-sm {
+        width: 100%;
+        display: block;
+    }
+    
+    /* 隐藏复杂元素 */
+    .hide-mobile {
+        display: none !important;
+    }
+    
+    /* 简化表格显示 */
+    .table-simplified th:not(:first-child):not(:last-child),
+    .table-simplified td:not(:first-child):not(:last-child) {
+        display: none;
+    }
+}
+
+/* ==========================================================================
+   3. 中等屏幕手机/大屏手机 (Medium Phones: 576px - 768px)
+   ========================================================================== */
+
+@media (min-width: 577px) and (max-width: 768px) {
+    .content {
+        padding: 1rem;
+    }
+    
+    .workspace-metrics,
+    .admin-metric-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .workspace-toolbar {
+        grid-template-columns: 1fr auto;
+    }
+    
+    .file-item,
+    .folder-item {
+        padding: 0.875rem;
+    }
+    
+    .modal-dialog {
+        max-width: 500px;
+        margin: 1rem auto;
+    }
+    
+    .hide-mobile {
+        display: none !important;
+    }
+    
+    .show-mobile {
+        display: block !important;
+    }
+}
+
+/* ==========================================================================
+   4. 平板适配 (Tablets: 768px - 992px)
+   ========================================================================== */
+
+@media (min-width: 769px) and (max-width: 992px) {
+    .content {
+        padding: 1.25rem;
+    }
+    
+    .workspace-metrics {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .admin-metric-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .auth-shell {
+        grid-template-columns: minmax(0, 1fr);
+        max-width: 560px;
+    }
+    
+    .auth-showcase {
+        display: none;
+    }
+    
+    .sidebar {
+        width: 260px;
+    }
+    
+    .hide-tablet {
+        display: none !important;
+    }
+}
+
+/* ==========================================================================
+   5. 横屏手机优化 (Landscape Phones)
+   ========================================================================== */
+
+@media (max-height: 500px) and (orientation: landscape) {
+    .site-navbar {
+        padding: 0.35rem 0;
+    }
+    
+    .workspace-hero {
+        display: none;
+    }
+    
+    .modal-dialog {
+        margin: 0.5rem auto;
+        max-height: calc(100vh - 1rem);
+    }
+    
+    .modal-body {
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+    }
+    
+    .auth-layout {
+        min-height: auto;
+        padding: 1rem;
+    }
+    
+    .auth-showcase {
+        display: none;
+    }
+}
+
+/* ==========================================================================
+   6. 安全区域适配 (Notch / Safe Areas)
+   ========================================================================== */
+
+@supports (padding-top: env(safe-area-inset-top)) {
+    .site-navbar {
+        padding-top: env(safe-area-inset-top);
+    }
+    
+    .sidebar {
+        padding-top: env(safe-area-inset-top);
+    }
+    
+    .mobile-bottom-nav {
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    
+    body.has-bottom-nav .content {
+        padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+    }
+}
+
+/* ==========================================================================
+   7. 暗黑模式移动端优化
+   ========================================================================== */
+
+[data-theme="dark"] {
+    /* 移动端暗黑模式特定优化 */
+}
+
+@media (max-width: 768px) and (prefers-color-scheme: dark) {
+    body:not([data-theme="light"]) {
+        /* 自动暗黑模式（如果用户未手动设置） */
+    }
+}
+
+/* ==========================================================================
+   8. 打印优化
+   ========================================================================== */
+
+@media print {
+    .site-navbar,
+    .sidebar,
+    .sidebar-toggle,
+    .workspace-actions,
+    .workspace-batch-actions,
+    .mobile-bottom-nav,
+    .fab-container {
+        display: none !important;
+    }
+    
+    .content {
+        padding: 0;
+        margin: 0;
+    }
+    
+    .card {
+        border: 1px solid #ddd;
+        box-shadow: none;
+    }
+    
+    body {
+        background: white;
+    }
+}
+
+/* ==========================================================================
+   9. 辅助类 (Utility Classes)
+   ========================================================================== */
+
+/* 显示/隐藏辅助类 */
+@media (max-width: 576px) {
+    .d-none-mobile {
+        display: none !important;
+    }
+    
+    .d-block-mobile {
+        display: block !important;
+    }
+    
+    .d-flex-mobile {
+        display: flex !important;
+    }
+    
+    .text-center-mobile {
+        text-align: center !important;
+    }
+    
+    .w-100-mobile {
+        width: 100% !important;
+    }
+}
+
+@media (min-width: 577px) {
+    .d-none-desktop {
+        display: none !important;
+    }
+}
+
+/* 触摸设备专用 */
+@media (pointer: coarse) {
+    .touch-only {
+        display: block !important;
+    }
+    
+    .hover-only {
+        display: none !important;
+    }
+}
+
+@media (pointer: fine) {
+    .touch-only {
+        display: none !important;
+    }
+}
+
+/* ==========================================================================
+   10. 动画性能优化
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .sidebar {
+        transition: none !important;
+    }
+}
+
+/* GPU 加速 */
+.sidebar,
+.modal-dialog,
+.fab-container {
+    will-change: transform;
+    transform: translateZ(0);
+}

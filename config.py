@@ -99,12 +99,38 @@ def get_db_path(env):
     db_path.parent.mkdir(parents=True, exist_ok=True)
     return str(db_path)
 
+
+# Database connection pool settings
+DB_POOL_SIZE = get_env_int('DB_POOL_SIZE', 10)
+DB_MAX_OVERFLOW = get_env_int('DB_MAX_OVERFLOW', 20)
+DB_POOL_TIMEOUT = get_env_int('DB_POOL_TIMEOUT', 30)
+DB_POOL_RECYCLE = get_env_int('DB_POOL_RECYCLE', 1800)
+
 class Config:
     # Basic configuration
     APP_VERSION = read_version_file()
     SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
     DEFAULT_ADMIN_PASSWORD = read_secret_setting('DEFAULT_ADMIN_PASSWORD')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    # Database connection pool configuration
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': DB_POOL_SIZE,
+        'max_overflow': DB_MAX_OVERFLOW,
+        'pool_timeout': DB_POOL_TIMEOUT,
+        'pool_recycle': DB_POOL_RECYCLE,
+    }
+    
+    # Cache configuration
+    CACHE_TYPE = os.environ.get('CACHE_TYPE', 'simple')  # 'simple', 'redis', 'memcached'
+    CACHE_DEFAULT_TIMEOUT = get_env_int('CACHE_DEFAULT_TIMEOUT', 300)  # 5 minutes
+    CACHE_REDIS_URL = os.environ.get('CACHE_REDIS_URL', 'redis://localhost:6379/0')
+    CACHE_REDIS_DB = get_env_int('CACHE_REDIS_DB', 0)
+    
+    # Celery configuration
+    CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/1')
+    CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/2')
+    
     UPLOAD_FOLDER = expand_path(os.environ.get('UPLOAD_FOLDER')) or get_storage_path()
     MAX_CONTENT_LENGTH = get_env_int('MAX_CONTENT_LENGTH', 20000 * 1024 * 1024 * 1024)  # 20TB default
     ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mp3', 
