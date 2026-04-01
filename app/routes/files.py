@@ -1230,6 +1230,14 @@ def search_files():
     user_id = session.get('user_id')
     query = request.args.get('query', '').strip()
     
+    # SECURITY: Limit search query length to prevent DoS
+    MAX_QUERY_LENGTH = 100
+    if len(query) > MAX_QUERY_LENGTH:
+        if wants_json_response():
+            return jsonify({'error': 'Search query too long'}), 400
+        flash('Search query too long', 'danger')
+        return redirect(url_for('files.index'))
+    
     if not query:
         return redirect(url_for('files.index'))
 
