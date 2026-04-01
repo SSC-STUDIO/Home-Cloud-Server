@@ -7,6 +7,7 @@ from app.models.activity import Activity
 from app.routes.auth import login_required
 from werkzeug.utils import secure_filename
 from werkzeug.urls import url_parse, url_join
+from sqlalchemy.orm import joinedload
 import ipaddress
 import os
 import socket
@@ -59,7 +60,8 @@ def get_files_page_context(user_id, folder_id=None):
         parent_folder = None
 
     subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-    files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+    # PERFORMANCE: Use joinedload to prevent N+1 queries when accessing file.folder
+    files = File.query.options(joinedload(File.folder)).filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
 
     user = User.query.get(user_id)
     storage_used = sync_user_storage_used(user)
@@ -1243,8 +1245,8 @@ def search_files():
 
     like_query = f"%{escaped_like_query(query)}%"
     
-    # Search for files and folders matching the query
-    files = File.query.filter(
+    # PERFORMANCE: Use joinedload to prevent N+1 queries when accessing file.folder
+    files = File.query.options(joinedload(File.folder)).filter(
         File.user_id == user_id,
         File.is_deleted.is_(False),
         File.original_filename.ilike(like_query, escape='\\')
