@@ -29,6 +29,15 @@ def create_app(config_name='default'):
     if hasattr(config[config_name], 'init_app'):
         config[config_name].init_app(app)
 
+    # SECURITY: Configure secure session cookies
+    from datetime import timedelta
+    app.config.update(
+        SESSION_COOKIE_SECURE=True,      # HTTPS only
+        SESSION_COOKIE_HTTPONLY=True,    # No JavaScript access
+        SESSION_COOKIE_SAMESITE='Lax',   # CSRF protection
+        PERMANENT_SESSION_LIFETIME=timedelta(hours=24)
+    )
+
     if app.config.get('TRUST_PROXY_HEADERS', True):
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     
