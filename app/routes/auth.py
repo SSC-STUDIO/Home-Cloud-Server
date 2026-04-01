@@ -1,6 +1,7 @@
 from typing import Callable
-from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response, abort
+from flask import Blueprint, render_template, redirect, url_for, request, flash, session, Response, abort, url_join
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.urls import url_parse
 from app.extensions import db
 from app.models.user import User
 from app.models.system_setting import SystemSetting
@@ -11,12 +12,27 @@ import re
 
 auth = Blueprint('auth', __name__)
 
+# SECURITY FIX: Helper function to validate redirect URLs
+def is_safe_url(target):
+    """Check if a redirect URL is safe (same origin)"""
+    ref_url = url_parse(request.host_url)
+    test_url = url_parse(url_join(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
+def get_safe_redirect_url(default='files.index'):
+    """Get a safe redirect URL from 'next' parameter or referrer"""
+    for target in request.args.get('next'), request.referrer:
+        if target and is_safe_url(target):
+            return target
+    return url_for(default)
+
 # Authentication middleware
 def login_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect(url_for('auth.login', next=request.url))
+            # SECURITY FIX: Use validated URL for redirect
+            return redirect(url_for('auth.login', next=request.path))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -24,7 +40,8 @@ def admin_required(f: Callable) -> Callable:
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect(url_for('auth.login', next=request.url))
+            # SECURITY FIX: Use validated URL for redirect
+            return redirect(url_for('auth.login', next=request.path))
         
         user = User.query.get(session['user_id'])
         if not user or user.role != 'admin':
