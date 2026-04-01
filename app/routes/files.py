@@ -1402,6 +1402,12 @@ def batch_restore():
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
     
+    # SECURITY: Limit batch size to prevent DoS
+    MAX_BATCH_SIZE = 50
+    if len(selected_items) > MAX_BATCH_SIZE:
+        flash(f'Maximum {MAX_BATCH_SIZE} items allowed per batch operation', 'danger')
+        return redirect(url_for('files.trash'))
+    
     if not selected_items:
         flash('No items selected', 'warning')
         return redirect(url_for('files.trash'))
@@ -1478,6 +1484,12 @@ def batch_restore():
 def batch_delete():
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
+    
+    # SECURITY: Limit batch size to prevent DoS
+    MAX_BATCH_SIZE = 50
+    if len(selected_items) > MAX_BATCH_SIZE:
+        flash(f'Maximum {MAX_BATCH_SIZE} items allowed per batch operation', 'danger')
+        return redirect(url_for('files.index'))
     
     if not selected_items:
         flash('No items selected for deletion', 'warning')
@@ -1621,6 +1633,12 @@ def batch_move():
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
     destination_id = request.form.get('destination_id', type=int)
+    
+    # SECURITY: Limit batch size to prevent DoS
+    MAX_BATCH_SIZE = 50
+    if len(selected_items) > MAX_BATCH_SIZE:
+        flash(f'Maximum {MAX_BATCH_SIZE} items allowed per batch operation', 'danger')
+        return safe_redirect('files.index')
     
     if destination_id is None:
         flash('No destination folder selected', 'warning')
