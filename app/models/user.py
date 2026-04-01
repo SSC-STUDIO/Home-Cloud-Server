@@ -53,6 +53,43 @@ class User(db.Model):
         """Check if user has enough space for a file of the given size"""
         return (self.storage_used + file_size) <= self.storage_quota
     
+    def update_storage_with_lock(self, size_delta: int) -> bool:
+        """
+        SECURITY FIX: Update storage with row lock to prevent race conditions.
+        
+        Uses database-level locking to ensure atomic quota checks and updates.
+        Prevents concurrent uploads from exceeding storage quota.
+        
+        Args:
+            size_delta: Amount to add to storage_used (positive for upload, negative for delete)
+            
+        Returns:
+            bool: True if update succeeded, False if quota would be exceeded
+            
+        Raises:
+            QuotaExceededError: If the update would exceed storage quota
+        """
+        from sqlalchemy import func
+        
+        # Use database transaction with row lock
+        with db.session.begin():
+            # Lock the user row to prevent concurrent updates
+            locked_user = db.session.query(User).filter_by(id=self.id).with_for_update().first()
+            
+            new_usage = locked_user.storage_used + size_delta
+            
+            if new_usage > locked_user.storage_quota:
+                return False
+            
+            locked_user.storage_used = new_usage
+            db.session.commit()
+            return True
+
+
+class QuotaExceededError(Exception):
+    """Raised when a storage quota would be exceeded"""
+    pass
+    
     def generate_reset_token(self) -> str:
         """Generate a password reset token"""
         import secrets

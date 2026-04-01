@@ -103,6 +103,55 @@ def api_admin_required(f: Callable) -> Callable:
 
     return decorated_function
 
+
+# SECURITY FIX: Helper function to check file ownership and prevent IDOR
+from flask import abort
+
+def check_file_ownership(file_id: int, user_id: int) -> File:
+    """Verify that the file belongs to the user or user is admin.
+    
+    Args:
+        file_id: The ID of the file to check
+        user_id: The ID of the requesting user
+        
+    Returns:
+        File: The file object if authorized
+        
+    Raises:
+        403: If user is not authorized to access the file
+        404: If file does not exist
+    """
+    file = File.query.get_or_404(file_id)
+    
+    # Check if user owns the file or is an admin
+    if file.user_id != user_id and not (hasattr(g, 'user') and g.user.role == 'admin'):
+        abort(403, "Access denied")
+    
+    return file
+
+
+def check_folder_ownership(folder_id: int, user_id: int) -> Folder:
+    """Verify that the folder belongs to the user or user is admin.
+    
+    Args:
+        folder_id: The ID of the folder to check
+        user_id: The ID of the requesting user
+        
+    Returns:
+        Folder: The folder object if authorized
+        
+    Raises:
+        403: If user is not authorized to access the folder
+        404: If folder does not exist
+    """
+    folder = Folder.query.get_or_404(folder_id)
+    
+    # Check if user owns the folder or is an admin
+    if folder.user_id != user_id and not (hasattr(g, 'user') and g.user.role == 'admin'):
+        abort(403, "Access denied")
+    
+    return folder
+
 # User API endpoints
 @api.route('/api/user/info')
 @api_login_required
@@ -366,4 +415,54 @@ def api_metrics_history() -> jsonify:
     for metric in metrics:
         metrics_list.append(metric.to_dict())
     
-    return jsonify({'metrics': metrics_list}) 
+    return jsonify({'metrics': metrics_list})
+
+
+# SECURITY FIX: Example API endpoint with proper ownership verification
+@api.route('/api/files/<int:file_id>')
+@api_login_required
+def get_file(file_id: int) -> jsonify:
+    """Get a single file by ID with ownership verification.
+    
+    SECURITY: Uses check_file_ownership to prevent IDOR attacks.
+    """
+    user = g.user
+    
+    # Verify ownership - will abort with 403 if unauthorized
+    file = check_file_ownership(file_id, user.id)
+    
+    return jsonify(file.to_dict())
+
+
+@api.route('/api/files/<int:file_id>', methods=['DELETE'])
+@api_login_required
+def delete_file(file_id: int) -> jsonify:
+    """Delete a file by ID with ownership verification.
+    
+    SECURITY: Uses check_file_ownership to prevent IDOR attacks.
+    """
+    user = g.user
+    
+    # Verify ownership - will abort with 403 if unauthorized
+    file = check_file_ownership(file_id, user.id)
+    
+    # Mark as deleted
+    file.is_deleted = True
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'File deleted'})
+
+
+@api.route('/api/folders/<int:folder_id>')
+@api_login_required
+def get_folder(folder_id: int) -> jsonify:
+    """Get a single folder by ID with ownership verification.
+    
+    SECURITY: Uses check_folder_ownership to prevent IDOR attacks.
+    """
+    user = g.user
+    
+    # Verify ownership - will abort with 403 if unauthorized
+    folder = check_folder_ownership(folder_id, user.id)
+    
+    return jsonify(folder.to_dict()) 

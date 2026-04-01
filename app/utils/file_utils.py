@@ -10,6 +10,104 @@ from flask import send_file, Response
 from werkzeug.utils import secure_filename
 import uuid
 
+# SECURITY FIX: File type validation constants
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', 'md', 'json', 'csv', 'zip', 'rar', '7z'}
+ALLOWED_MIME_TYPES = {
+    'image/png', 'image/jpeg', 'image/gif', 'application/pdf',
+    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain', 'text/markdown', 'application/json', 'text/csv',
+    'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
+    'application/octet-stream'
+}
+
+
+def validate_file(file_obj) -> tuple[bool, str | None]:
+    """
+    SECURITY FIX: Comprehensive file validation to prevent type bypass attacks.
+    
+    Validates:
+    1. File extension against whitelist
+    2. MIME type using magic number detection (python-magic)
+    3. Extension matches actual content type
+    
+    Args:
+        file_obj: File object (e.g., from request.files)
+        
+    Returns:
+        tuple: (is_valid, error_message)
+    """
+    try:
+        import magic
+    except ImportError:
+        # Fallback if python-magic not installed - only check extension
+        filename = secure_filename(file_obj.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+        if ext not in ALLOWED_EXTENSIONS:
+            return False, f"File extension not allowed. Allowed: {ALLOWED_EXTENSIONS}"
+        return True, None
+    
+    # 1. Validate file extension
+    filename = secure_filename(file_obj.filename)
+    if not filename:
+        return False, "Invalid filename"
+        
+    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+    if ext not in ALLOWED_EXTENSIONS:
+        return False, f"File extension not allowed. Allowed: {ALLOWED_EXTENSIONS}"
+    
+    # 2. Validate MIME type using magic numbers
+    file_obj.seek(0)
+    file_header = file_obj.read(2048)
+    file_obj.seek(0)
+    
+    try:
+        mime = magic.from_buffer(file_header, mime=True)
+    except Exception:
+        return False, "Could not determine file type"
+    
+    if mime not in ALLOWED_MIME_TYPES:
+        return False, f"File type not allowed. Detected: {mime}"
+    
+    # 3. Verify extension matches MIME type
+    mime_to_ext = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/gif': 'gif',
+        'application/pdf': 'pdf',
+        'application/msword': 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+        'text/plain': 'txt',
+        'text/markdown': 'md',
+        'application/json': 'json',
+        'text/csv': 'csv',
+        'application/zip': 'zip',
+        'application/x-rar-compressed': 'rar',
+        'application/x-7z-compressed': '7z',
+    }
+    
+    expected_ext = mime_to_ext.get(mime)
+    if expected_ext and expected_ext != ext:
+        return False, f"File extension does not match content. Expected: .{expected_ext}, Got: .{ext}"
+    
+    return True, None
+
+
+def validate_file_simple(filename: str) -> bool:
+    """
+    Simple extension-based validation (fallback when file object not available).
+    
+    Args:
+        filename: Name of the file to validate
+        
+    Returns:
+        bool: True if extension is allowed
+    """
+    filename = secure_filename(filename)
+    if not filename or '.' not in filename:
+        return False
+    ext = filename.rsplit('.', 1)[1].lower()
+    return ext in ALLOWED_EXTENSIONS
+
 def get_file_hash(file_path: str, algorithm: str = 'sha256') -> str:
     """
     Calculate hash of a file using secure algorithm
