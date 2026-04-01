@@ -109,7 +109,14 @@ DB_POOL_RECYCLE = get_env_int('DB_POOL_RECYCLE', 1800)
 class Config:
     # Basic configuration
     APP_VERSION = read_version_file()
-    SECRET_KEY = os.environ.get('SECRET_KEY') or secrets.token_hex(16)
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError(
+            "SECRET_KEY environment variable is required. "
+            "Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'"
+        )
+    if len(SECRET_KEY) < 32:
+        raise ValueError("SECRET_KEY must be at least 32 characters (256 bits)")
     DEFAULT_ADMIN_PASSWORD = read_secret_setting('DEFAULT_ADMIN_PASSWORD')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
@@ -142,7 +149,16 @@ class Config:
     SERVER_PORT = int(os.environ.get('SERVER_PORT', 5000))
     SERVER_HOST = os.environ.get('SERVER_HOST', '0.0.0.0')
     APP_CONFIG = os.environ.get('APP_CONFIG', 'production')
-    TRUST_PROXY_HEADERS = get_env_bool('TRUST_PROXY_HEADERS', True)
+    TRUST_PROXY_HEADERS = get_env_bool('TRUST_PROXY_HEADERS', False)
+    
+    # Security warning for proxy headers
+    if TRUST_PROXY_HEADERS:
+        import warnings
+        warnings.warn(
+            "TRUST_PROXY_HEADERS is enabled. "
+            "Ensure your deployment is behind a trusted reverse proxy (nginx/traefik) "
+            "and the proxy properly sanitizes X-Forwarded-* headers."
+        )
     
     # SSL certificate configuration
     system = platform.system().lower()
