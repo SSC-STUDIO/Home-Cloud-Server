@@ -86,7 +86,8 @@ def ensure_image_exists(filepath: str, filename: str = None, size: tuple[int, in
         filename = os.path.basename(filepath)
     
     # Generate a deterministic color based on the filename
-    name_hash = hashlib.md5(filename.encode()).hexdigest()
+    # SECURITY FIX: Use SHA-256 instead of MD5 for hash generation
+    name_hash = hashlib.sha256(filename.encode()).hexdigest()
     r = int(name_hash[0:2], 16) % 100 + 100  # 100-199
     g = int(name_hash[2:4], 16) % 100 + 100  # 100-199
     b = int(name_hash[4:6], 16) % 100 + 100  # 100-199

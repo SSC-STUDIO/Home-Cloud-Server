@@ -5,8 +5,8 @@ from app.models.file import File, Folder
 from app.models.system_setting import SystemSetting
 from app.models.activity import Activity
 from app.routes.auth import login_required
-from requests.adapters import HTTPAdapter
 from werkzeug.utils import secure_filename
+from werkzeug.urls import url_parse, url_join
 import ipaddress
 import os
 import socket
@@ -20,11 +20,25 @@ import json
 import zipfile
 import io
 from app.utils.transfer_tracker import TransferSpeedTracker
-import shutil  # 新增，用于磁盘空间检测
+import shutil
 from sqlalchemy import func
 from urllib.parse import unquote, urlparse
 
 files = Blueprint('files', __name__)
+
+# SECURITY FIX: Helper function to validate redirect URLs (same as auth.py)
+def is_safe_url(target):
+    """Check if a redirect URL is safe (same origin)"""
+    ref_url = url_parse(request.host_url)
+    test_url = url_parse(url_join(request.host_url, target))
+    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+
+def safe_redirect(default='files.index'):
+    """Get safe redirect URL from referrer or return default"""
+    target = request.referrer
+    if target and is_safe_url(target):
+        return redirect(target)
+    return redirect(url_for(default))
 
 def wants_json_response():
     return (
@@ -1051,7 +1065,7 @@ def delete_file(file_id):
         sync_user_storage_used(user)
         db.session.commit()
     
-    return redirect(request.referrer or url_for('files.index'))
+    return safe_redirect('files.index')
 
 @files.route('/files/delete_folder/<int:folder_id>', methods=['POST'])
 @login_required
@@ -1143,7 +1157,7 @@ def delete_folder(folder_id):
         sync_user_storage_used(user)
         db.session.commit()
     
-    return redirect(request.referrer or url_for('files.index'))
+    return safe_redirect('files.index')
 
 @files.route('/files/empty_trash', methods=['POST'])
 @login_required
@@ -1190,12 +1204,12 @@ def create_folder():
     
     if not folder_name:
         flash('Enter a valid folder name without path separators', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     # Check if folder already exists in the same parent
     if folder_name_exists(user_id, parent_id, folder_name):
         flash('A folder with this name already exists', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     # Create new folder
     new_folder = Folder(
@@ -1259,7 +1273,7 @@ def rename_file(file_id):
     
     if not new_name:
         flash('Enter a valid file name without path separators', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
     
@@ -1271,11 +1285,11 @@ def rename_file(file_id):
     new_name = normalize_item_name(new_name)
     if not new_name:
         flash('Enter a valid file name without path separators', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
 
     if file_name_exists(user_id, file.folder_id, new_name, exclude_file_id=file.id):
         flash('A file with this name already exists in this folder', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
 
     file.original_filename = new_name
     file.updated_at = datetime.utcnow()
@@ -1283,7 +1297,7 @@ def rename_file(file_id):
     db.session.commit()
     
     flash('File renamed successfully', 'success')
-    return redirect(request.referrer or url_for('files.index'))
+    return safe_redirect('files.index')
 
 @files.route('/files/rename_folder/<int:folder_id>', methods=['POST'])
 @login_required
@@ -1293,14 +1307,14 @@ def rename_folder(folder_id):
     
     if not new_name:
         flash('Enter a valid folder name without path separators', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
     
     # Check if a folder with this name already exists in the same parent
     if folder_name_exists(user_id, folder.parent_id, new_name, exclude_folder_id=folder_id):
         flash('A folder with this name already exists', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     folder.name = new_name
     folder.updated_at = datetime.utcnow()
@@ -1308,7 +1322,7 @@ def rename_folder(folder_id):
     db.session.commit()
     
     flash('Folder renamed successfully', 'success')
-    return redirect(request.referrer or url_for('files.index'))
+    return safe_redirect('files.index')
 
 @files.route('/files/history')
 @login_required
@@ -1602,17 +1616,17 @@ def batch_move():
     
     if destination_id is None:
         flash('No destination folder selected', 'warning')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     # Ensure destination folder exists and belongs to the user
     destination_folder = Folder.query.filter_by(id=destination_id, user_id=user_id, is_deleted=False).first()
     if not destination_folder:
         flash('Destination folder not found', 'danger')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     if not selected_items:
         flash('No items selected', 'warning')
-        return redirect(request.referrer or url_for('files.index'))
+        return safe_redirect('files.index')
     
     moved_files = 0
     moved_folders = 0
