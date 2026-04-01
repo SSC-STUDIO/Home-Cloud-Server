@@ -118,4 +118,13 @@ def create_app(config_name='default'):
     def bad_request(e):
         return render_template('errors/400.html'), 400
     
+    # Security headers - protect against clickjacking and other attacks
+    @app.after_request
+    def set_security_headers(response):
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+        return response
+    
     return app
