@@ -1,0 +1,55 @@
+# Home Cloud Server - requirements.in
+# 使用 pip-compile 生成锁定文件
+#   pip install pip-tools
+#   pip-compile requirements.in
+#   pip-compile --upgrade requirements.in
+
+# Web Framework
+Flask>=3.1.0
+Flask-SQLAlchemy>=3.1.1
+SQLAlchemy>=2.0.45,<3.0
+Werkzeug>=3.1.3
+Jinja2>=3.1.6
+MarkupSafe>=3.0.2
+itsdangerous>=2.2.0
+click>=8.1.8
+
+# Database
+alembic>=1.15.2
+Flask-Migrate>=4.1.0
+
+# Security
+cryptography>=44.0.0
+bcrypt>=4.3.0
+Flask-Bcrypt>=1.0.1
+
+# Image Processing - 升级到最新版修复 CVE-2023-44271
+pillow>=11.0.0
+
+# HTTP Requests - 升级到最新版修复 CVE
+requests>=2.32.0
+
+# Utilities
+psutil>=5.9.8
+python-dateutil>=2.8.2
+pytz>=2025.2
+python-dotenv>=1.0.1
+colorama>=0.4.6
+blinker>=1.9.0
+
+# Scheduling
+Flask-APScheduler>=1.13.1
+APScheduler>=3.10.4
+
+# File handling
+zipstream-new>=1.1.8
+
+# Production server
+gunicorn>=22.0.0
+
+# Forms
+Flask-WTF>=1.2.0
+WTForms>=3.1.0
+
+# Security scanning (dev)
+# pip-audit>=2.7.0

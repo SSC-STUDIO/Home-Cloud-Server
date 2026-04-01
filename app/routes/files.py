@@ -11,6 +11,7 @@ import ipaddress
 import os
 import socket
 import uuid
+import re
 from contextlib import closing
 from datetime import datetime
 import mimetypes
@@ -23,16 +24,19 @@ from app.utils.transfer_tracker import TransferSpeedTracker
 import shutil  # 新增，用于磁盘空间检测
 from sqlalchemy import func
 from urllib.parse import unquote, urlparse
+from typing import Dict, List, Optional, Any, Tuple, Union
 
 files = Blueprint('files', __name__)
 
-def wants_json_response():
+def wants_json_response() -> bool:
+    """Check if the request wants a JSON response."""
     return (
         request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         or request.accept_mimetypes.best == 'application/json'
     )
 
-def get_files_page_context(user_id, folder_id=None):
+def get_files_page_context(user_id: int, folder_id: Optional[int] = None) -> Dict[str, Any]:
+    """Get context data for the files page."""
     if folder_id:
         current_folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
         parent_folder = Folder.query.filter_by(id=current_folder.parent_id).first() if current_folder.parent_id else None
@@ -64,7 +68,8 @@ def get_files_page_context(user_id, folder_id=None):
         'all_folders': all_folders,
     }
 
-def build_upload_feedback(uploaded_count, error_count):
+def build_upload_feedback(uploaded_count: int, error_count: int) -> Dict[str, str]:
+    """Build feedback message for upload operations."""
     if uploaded_count == 0:
         return {
             'state': 'error',
@@ -85,7 +90,10 @@ def build_upload_feedback(uploaded_count, error_count):
         'message': f'All {uploaded_count} file(s) uploaded successfully.',
     }
 
-def build_upload_json_payload(user_id, folder_id, uploaded_count, error_count, recent_items=None):
+def build_upload_json_payload(user_id: int, folder_id: Optional[int], 
+                              uploaded_count: int, error_count: int, 
+                              recent_items: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Build JSON payload for upload response."""
     context = get_files_page_context(user_id, folder_id)
 
     if context['storage_percent'] > 90:
@@ -123,8 +131,8 @@ def build_upload_json_payload(user_id, folder_id, uploaded_count, error_count, r
         ),
     }
 
-def allowed_file(filename):
-    # Get allowed file types from system settings
+def allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed based on system settings."""
     allowed_types_setting = SystemSetting.query.filter_by(key='allowed_file_types').first()
     if allowed_types_setting:
         allowed_types = allowed_types_setting.get_typed_value()
@@ -137,14 +145,13 @@ def allowed_file(filename):
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in allowed_extensions
     
-    # Default allowed extensions if setting not found
     return '.' in filename
 
-def get_file_type(filename):
+def get_file_type(filename: str) -> str:
+    """Categorize file by its type based on MIME type or extension."""
     extension = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
     mime_type, _ = mimetypes.guess_type(filename)
     
-    # Categorize files
     if mime_type:
         if mime_type.startswith('image/'):
             return 'image'
@@ -163,23 +170,22 @@ def get_file_type(filename):
         elif mime_type.startswith('application/'):
             return 'application'
     
-    # Based on extension
     if extension in ['zip', 'rar', '7z', 'tar', 'gz']:
         return 'archive'
     
     return 'other'
 
-def get_free_space(path):
-    """Return free space (in bytes) for the disk containing the given path"""
+def get_free_space(path: str) -> int:
+    """Return free space (in bytes) for the disk containing the given path."""
     try:
         usage = shutil.disk_usage(path)
         return usage.free
     except Exception as e:
         print(f"Error getting free space for {path}: {e}")
-        # 如果无法获取，返回0表示空间不足
         return 0
 
-def cleanup_saved_file(path):
+def cleanup_saved_file(path: Optional[str]) -> None:
+    """Clean up a saved file if it exists."""
     if not path:
         return
     try:
@@ -188,7 +194,7 @@ def cleanup_saved_file(path):
     except OSError as exc:
         print(f"Error cleaning up file {path}: {exc}")
 
-def normalize_item_name(raw_value):
+def normalize_item_name(raw_value: Optional[str]) -> Optional[str]:
     """Normalize and validate item name to prevent path traversal attacks.
     
     Returns None if the name is invalid or potentially dangerous.
@@ -196,27 +202,21 @@ def normalize_item_name(raw_value):
     if raw_value is None:
         return None
 
-    # Check for null bytes which can be used for injection attacks
     if '\x00' in raw_value:
         return None
     
-    # Normalize Unicode to prevent homograph attacks
     import unicodedata
     try:
         value = unicodedata.normalize('NFC', raw_value.strip())
     except (TypeError, ValueError):
         return None
     
-    # Reject empty names
     if not value:
         return None
     
-    # Reject current and parent directory references
     if value in {'.', '..'}:
         return None
     
-    # Check for path traversal patterns
-    # This checks for sequences like ../, ..\, /.., \.., etc.
     dangerous_patterns = [
         '../', '..\\', '/..', '\\..',
         '..%2f', '..%2F', '%2e%2e', '%252e%252e',
@@ -227,40 +227,34 @@ def normalize_item_name(raw_value):
         if pattern in lower_value:
             return None
     
-    # Reject names that look like absolute paths
     if value.startswith('/') or value.startswith('\\'):
         return None
     
-    # Reject Windows drive letter patterns (e.g., C:, D:)
     if re.match(r'^[a-zA-Z]:', value):
         return None
     
-    # Check length limit
     if len(value) > 255:
         return None
     
-    # Reject path separators
     if any(separator in value for separator in ('/', '\\')):
         return None
     
-    # Reject control characters
     if any(ord(character) < 32 for character in value):
         return None
     
-    # Reject names that are reserved on Windows
     reserved_names = {
         'con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4',
         'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 
         'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
     }
-    # Check base name without extension
     base_name = value.lower().split('.')[0]
     if base_name in reserved_names:
         return None
 
     return value
 
-def build_storage_filename(filename):
+def build_storage_filename(filename: str) -> str:
+    """Build a unique storage filename with UUID prefix."""
     safe_name = secure_filename(filename)
     if safe_name:
         return f"{uuid.uuid4().hex}_{safe_name}"
@@ -270,7 +264,8 @@ def build_storage_filename(filename):
     return f"{uuid.uuid4().hex}_{fallback_name}"
 
 
-def sync_user_storage_used(user):
+def sync_user_storage_used(user: Optional[User]) -> int:
+    """Synchronize user's storage usage by calculating total file sizes."""
     if user is None:
         return 0
 
@@ -279,7 +274,8 @@ def sync_user_storage_used(user):
     return total_size
 
 
-def resolve_managed_file_path(file_path):
+def resolve_managed_file_path(file_path: str) -> Optional[str]:
+    """Resolve and validate file path is within upload folder."""
     upload_root = os.path.realpath(current_app.config['UPLOAD_FOLDER'])
     target_path = os.path.realpath(file_path)
 
@@ -294,7 +290,8 @@ def resolve_managed_file_path(file_path):
     return target_path
 
 
-def is_blocked_remote_ip(ip_text):
+def is_blocked_remote_ip(ip_text: str) -> bool:
+    """Check if IP address is blocked (private, loopback, etc.)."""
     try:
         ip = ipaddress.ip_address(ip_text)
     except ValueError:
@@ -310,7 +307,8 @@ def is_blocked_remote_ip(ip_text):
     )
 
 
-def validate_remote_download_url(file_url):
+def validate_remote_download_url(file_url: str) -> Any:
+    """Validate remote download URL is safe."""
     parsed = urlparse(file_url)
     if parsed.scheme not in {'http', 'https'}:
         raise ValueError('Invalid URL')
@@ -322,7 +320,8 @@ def validate_remote_download_url(file_url):
     return parsed
 
 
-def resolve_remote_connect_target(parsed_url):
+def resolve_remote_connect_target(parsed_url: Any) -> Dict[str, Any]:
+    """Resolve remote connect target with IP validation."""
     hostname = parsed_url.hostname
     if not hostname:
         raise ValueError('Invalid URL')
@@ -368,7 +367,8 @@ def resolve_remote_connect_target(parsed_url):
     return allowed_target
 
 
-def prepare_remote_request(request_url):
+def prepare_remote_request(request_url: str) -> Dict[str, Any]:
+    """Prepare remote download request with security checks."""
     parsed = validate_remote_download_url(request_url)
     target = resolve_remote_connect_target(parsed)
     direct_url = build_direct_connect_url(parsed, target['resolved_ip'], target['connect_port'])
@@ -382,7 +382,9 @@ def prepare_remote_request(request_url):
     }
 
 
-def create_remote_download_session():
+def create_remote_download_session() -> Any:
+    """Create a requests session for remote downloads with custom adapter."""
+    import requests
     session = requests.Session()
     session.trust_env = False
     adapter = RemoteDownloadAdapter()
@@ -391,22 +393,8 @@ def create_remote_download_session():
     return session
 
 
-class RemoteDownloadAdapter(HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
-        kwargs.setdefault('assert_hostname', False)
-        return super().init_poolmanager(*args, **kwargs)
-
-    def send(self, request, **kwargs):
-        remote_request = prepare_remote_request(request.url)
-
-        request.headers['Host'] = remote_request['target']['hostname']
-        request.url = remote_request['direct_url']
-        kwargs['verify'] = remote_request['verify']
-        kwargs.pop('allow_redirects', None)
-        return super().send(request, **kwargs)
-
-
-def build_direct_connect_url(parsed_url, resolved_ip, connect_port):
+def build_direct_connect_url(parsed_url: Any, resolved_ip: str, connect_port: int) -> str:
+    """Build direct connect URL with resolved IP."""
     if ':' in resolved_ip and not resolved_ip.startswith('['):
         netloc_host = f'[{resolved_ip}]'
     else:
@@ -421,7 +409,9 @@ def build_direct_connect_url(parsed_url, resolved_ip, connect_port):
     return parsed_url._replace(netloc=netloc).geturl()
 
 
-def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
+def folder_name_exists(user_id: int, parent_id: Optional[int], folder_name: str, 
+                       exclude_folder_id: Optional[int] = None) -> bool:
+    """Check if a folder with the given name already exists."""
     query = Folder.query.filter(
         Folder.user_id == user_id,
         Folder.parent_id == parent_id,
@@ -432,9 +422,9 @@ def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
         query = query.filter(Folder.id != exclude_folder_id)
     return query.first() is not None
 
-def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
-    """Check if a file with the same name exists in the folder.
-    Uses case-insensitive comparison for cross-platform compatibility."""
+def file_name_exists(user_id: int, folder_id: int, filename: str, 
+                     exclude_file_id: Optional[int] = None) -> bool:
+    """Check if a file with the same name exists in the folder."""
     query = File.query.filter(
         File.user_id == user_id,
         File.folder_id == folder_id,
@@ -445,14 +435,9 @@ def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
         query = query.filter(File.id != exclude_file_id)
     return query.first() is not None
 
-def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
-    """Generate a unique filename, handling race conditions.
-    
-    Uses database locking to prevent concurrent uploads from creating duplicates.
-    Returns the unique filename or None if unable to generate one.
-    """
-    from sqlalchemy import func
-    
+def generate_unique_filename(user_id: int, folder_id: int, filename: str, 
+                             max_attempts: int = 100) -> Optional[str]:
+    """Generate a unique filename, handling race conditions."""
     base_name, extension = os.path.splitext(filename)
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     
@@ -462,8 +447,6 @@ def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
         else:
             candidate = f"{base_name}_{timestamp}_{attempt}{extension}"
         
-        # Use database lock to prevent race conditions
-        # Check existence with a lock on the folder row
         existing = File.query.filter(
             File.user_id == user_id,
             File.folder_id == folder_id,
@@ -476,7 +459,8 @@ def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
     
     return None
 
-def escaped_like_query(value):
+def escaped_like_query(value: str) -> str:
+    """Escape special characters for SQL LIKE queries."""
     return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 @files.route('/files')

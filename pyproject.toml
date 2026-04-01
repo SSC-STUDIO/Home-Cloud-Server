@@ -1,6 +1,6 @@
 [project]
 name = "home-cloud-server"
-version = "0.1.11"
+version = "0.1.12"
 description = "Home Cloud Server - Flask-based cloud storage and management system"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -33,16 +33,19 @@ dependencies = [
     "pytz>=2025.2",
     "Flask-APScheduler>=1.13.1",
     "APScheduler>=3.10.4",
-    "pillow>=10.2.0",
+    # 升级到最新 Pillow 修复 CVE-2023-44271
+    "pillow>=11.0.0",
     "alembic>=1.15.2",
     "Flask-Migrate>=4.1.0",
     "bcrypt>=4.3.0",
     "Flask-Bcrypt>=1.0.1",
     "python-dotenv>=1.0.1",
     "colorama>=0.4.6",
-    "cryptography>=42.0.5",
+    # 升级到最新 cryptography 修复安全漏洞
+    "cryptography>=44.0.0",
     "blinker>=1.9.0",
-    "requests>=2.31.0",
+    # 升级到最新 requests 修复 CVE
+    "requests>=2.32.0",
     "zipstream-new>=1.1.8",
     "gunicorn>=22.0.0",
 ]
@@ -56,6 +59,8 @@ dev = [
     "flake8>=6.0.0",
     "mypy>=1.5.0",
     "pre-commit>=3.3.0",
+    # 添加 pip-audit 安全扫描
+    "pip-audit>=2.7.0",
 ]
 test = [
     "pytest>=7.4.0",
@@ -88,6 +93,7 @@ dev-dependencies = [
     "flake8>=6.0.0",
     "mypy>=1.5.0",
     "pre-commit>=3.3.0",
+    "pip-audit>=2.7.0",
 ]
 
 [tool.black]
@@ -144,5 +150,3 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
 ]
-
-
