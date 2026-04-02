@@ -1,4 +1,4 @@
-from app.models import Activity, File, Folder, SystemMetric, SystemSetting, User
+from app.models import Activity, File, Folder, SystemMetric, SystemSetting, User, UserSession
 from app.extensions import db
 from app.utils.db_optimization import configure_db_engine, create_database_indexes
 import secrets

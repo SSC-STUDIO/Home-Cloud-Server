@@ -10,13 +10,6 @@ from flask import send_file, Response
 from werkzeug.utils import secure_filename
 import uuid
 
-# 导入安全验证模块
-from app.utils.security_validation import (
-    PathValidator, MagicBytesValidator, 
-    InputLengthValidator, SecurityValidator
-)
-
-
 def get_file_hash(file_path: str) -> str:
     """
     Calculate MD5 hash of a file
@@ -49,7 +42,6 @@ def get_mime_type(file_path: str) -> str:
 def create_unique_filename(original_filename: str) -> str:
     """
     Create a unique filename to avoid conflicts
-    修复: 添加文件名验证和魔术字节检查准备
     
     Args:
         original_filename: Original filename
@@ -57,23 +49,10 @@ def create_unique_filename(original_filename: str) -> str:
     Returns:
         str: Unique filename
     """
-    # 安全验证 - 修复漏洞1,3,4
-    valid, result = SecurityValidator.validate_filename(original_filename)
-    if not valid:
-        # 如果验证失败，使用安全文件名
-        filename = "file"
-    else:
-        filename = secure_filename(result)
-    
+    filename = secure_filename(original_filename)
     if not filename:
         filename = "file"
-    
     unique_filename = f"{uuid.uuid4().hex}_{filename}"
-    
-    # 检查最终长度
-    if len(unique_filename) > 300:
-        unique_filename = unique_filename[:300]
-    
     return unique_filename
 
 def get_file_size(file_path: str) -> int:
@@ -164,49 +143,3 @@ def delete_folder_safely(folder_path: str) -> bool:
     except Exception as e:
         print(f"Error deleting folder {folder_path}: {e}")
     return False 
-
-
-def validate_file_path(file_path: str, base_dir: str) -> bool:
-    """
-    验证文件路径安全 - 修复目录遍历漏洞
-    
-    Args:
-        file_path: 文件路径
-        base_dir: 基础目录
-        
-    Returns:
-        bool: 是否安全
-    """
-    valid, _ = SecurityValidator.validate_filepath(file_path, base_dir)
-    return valid
-
-
-def validate_file_type(file_path: str, allowed_types: set = None) -> bool:
-    """
-    验证文件类型 - 修复魔术字节检查漏洞
-    
-    Args:
-        file_path: 文件路径
-        allowed_types: 允许的MIME类型集合
-        
-    Returns:
-        bool: 是否安全
-    """
-    valid, _ = SecurityValidator.validate_file_content(file_path, allowed_types=allowed_types)
-    return valid
-
-
-def sanitize_filename(filename: str) -> str:
-    """
-    清理文件名 - 修复特殊字符过滤漏洞
-    
-    Args:
-        filename: 原始文件名
-        
-    Returns:
-        str: 安全的文件名
-    """
-    valid, result = SecurityValidator.validate_filename(filename)
-    if valid:
-        return result
-    return "file"

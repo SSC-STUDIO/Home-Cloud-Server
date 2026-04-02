@@ -1,0 +1,34 @@
+--- a/app/static/js/files-index.js
++++ b/app/static/js/files-index.js
+@@ -1030,7 +1030,7 @@ function highlightSearchMatches(query) {
+     dom.searchResultsContainer.querySelectorAll(".search-match-target").forEach((element) => {
+         const originalText = element.textContent || "";
+         const matchIndex = originalText.toLowerCase().indexOf(normalizedQuery);
+         if (matchIndex === -1) {
+             return;
+         }
+ 
+-        const start = escapeHtml(originalText.slice(0, matchIndex));
+-        const middle = escapeHtml(originalText.slice(matchIndex, matchIndex + normalizedQuery.length));
+-        const end = escapeHtml(originalText.slice(matchIndex + normalizedQuery.length));
+-        element.innerHTML = `${start}<span class="search-hit">${middle}</span>${end}`;
++        // 安全修复: 使用DOM API替代innerHTML
++        element.textContent = '';
++        
++        if (matchIndex > 0) {
++            element.appendChild(document.createTextNode(
++                originalText.slice(0, matchIndex)
++            ));
++        }
++        
++        const highlightSpan = document.createElement('span');
++        highlightSpan.className = 'search-hit';
++        highlightSpan.textContent = originalText.slice(matchIndex, matchIndex + normalizedQuery.length);
++        element.appendChild(highlightSpan);
++        
++        const remainingText = originalText.slice(matchIndex + normalizedQuery.length);
++        if (remainingText) {
++            element.appendChild(document.createTextNode(remainingText));
++        }
+     });
+ }
