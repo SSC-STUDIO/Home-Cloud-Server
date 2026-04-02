@@ -10,128 +10,28 @@ from flask import send_file, Response
 from werkzeug.utils import secure_filename
 import uuid
 
-# SECURITY FIX: File type validation constants
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'txt', 'md', 'json', 'csv', 'zip', 'rar', '7z'}
-ALLOWED_MIME_TYPES = {
-    'image/png', 'image/jpeg', 'image/gif', 'application/pdf',
-    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain', 'text/markdown', 'application/json', 'text/csv',
-    'application/zip', 'application/x-rar-compressed', 'application/x-7z-compressed',
-    'application/octet-stream'
-}
+# 导入安全验证模块
+from app.utils.security_validation import (
+    PathValidator, MagicBytesValidator, 
+    InputLengthValidator, SecurityValidator
+)
 
 
-def validate_file(file_obj) -> tuple[bool, str | None]:
+def get_file_hash(file_path: str) -> str:
     """
-    SECURITY FIX: Comprehensive file validation to prevent type bypass attacks.
-    
-    Validates:
-    1. File extension against whitelist
-    2. MIME type using magic number detection (python-magic)
-    3. Extension matches actual content type
-    
-    Args:
-        file_obj: File object (e.g., from request.files)
-        
-    Returns:
-        tuple: (is_valid, error_message)
-    """
-    try:
-        import magic
-    except ImportError:
-        # Fallback if python-magic not installed - only check extension
-        filename = secure_filename(file_obj.filename)
-        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-        if ext not in ALLOWED_EXTENSIONS:
-            return False, f"File extension not allowed. Allowed: {ALLOWED_EXTENSIONS}"
-        return True, None
-    
-    # 1. Validate file extension
-    filename = secure_filename(file_obj.filename)
-    if not filename:
-        return False, "Invalid filename"
-        
-    ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-    if ext not in ALLOWED_EXTENSIONS:
-        return False, f"File extension not allowed. Allowed: {ALLOWED_EXTENSIONS}"
-    
-    # 2. Validate MIME type using magic numbers
-    file_obj.seek(0)
-    file_header = file_obj.read(2048)
-    file_obj.seek(0)
-    
-    try:
-        mime = magic.from_buffer(file_header, mime=True)
-    except Exception:
-        return False, "Could not determine file type"
-    
-    if mime not in ALLOWED_MIME_TYPES:
-        return False, f"File type not allowed. Detected: {mime}"
-    
-    # 3. Verify extension matches MIME type
-    mime_to_ext = {
-        'image/png': 'png',
-        'image/jpeg': 'jpg',
-        'image/gif': 'gif',
-        'application/pdf': 'pdf',
-        'application/msword': 'doc',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
-        'text/plain': 'txt',
-        'text/markdown': 'md',
-        'application/json': 'json',
-        'text/csv': 'csv',
-        'application/zip': 'zip',
-        'application/x-rar-compressed': 'rar',
-        'application/x-7z-compressed': '7z',
-    }
-    
-    expected_ext = mime_to_ext.get(mime)
-    if expected_ext and expected_ext != ext:
-        return False, f"File extension does not match content. Expected: .{expected_ext}, Got: .{ext}"
-    
-    return True, None
-
-
-def validate_file_simple(filename: str) -> bool:
-    """
-    Simple extension-based validation (fallback when file object not available).
-    
-    Args:
-        filename: Name of the file to validate
-        
-    Returns:
-        bool: True if extension is allowed
-    """
-    filename = secure_filename(filename)
-    if not filename or '.' not in filename:
-        return False
-    ext = filename.rsplit('.', 1)[1].lower()
-    return ext in ALLOWED_EXTENSIONS
-
-def get_file_hash(file_path: str, algorithm: str = 'sha256') -> str:
-    """
-    Calculate hash of a file using secure algorithm
+    Calculate MD5 hash of a file
     
     Args:
         file_path: Path to the file
-        algorithm: Hash algorithm ('sha256' or 'md5' for legacy compatibility)
         
     Returns:
-        str: Hash of the file
-        
-    Note: MD5 is deprecated for security use. Use SHA-256 for new code.
+        str: MD5 hash of the file
     """
-    if algorithm.lower() == 'md5':
-        # SECURITY WARNING: MD5 is cryptographically broken and should not be used
-        # for security purposes. Kept for legacy compatibility only.
-        hasher = hashlib.md5()
-    else:
-        hasher = hashlib.sha256()
-    
+    hash_md5 = hashlib.md5()
     with open(file_path, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
 
 def get_mime_type(file_path: str) -> str:
     """
@@ -149,6 +49,7 @@ def get_mime_type(file_path: str) -> str:
 def create_unique_filename(original_filename: str) -> str:
     """
     Create a unique filename to avoid conflicts
+    修复: 添加文件名验证和魔术字节检查准备
     
     Args:
         original_filename: Original filename
@@ -156,10 +57,23 @@ def create_unique_filename(original_filename: str) -> str:
     Returns:
         str: Unique filename
     """
-    filename = secure_filename(original_filename)
+    # 安全验证 - 修复漏洞1,3,4
+    valid, result = SecurityValidator.validate_filename(original_filename)
+    if not valid:
+        # 如果验证失败，使用安全文件名
+        filename = "file"
+    else:
+        filename = secure_filename(result)
+    
     if not filename:
         filename = "file"
+    
     unique_filename = f"{uuid.uuid4().hex}_{filename}"
+    
+    # 检查最终长度
+    if len(unique_filename) > 300:
+        unique_filename = unique_filename[:300]
+    
     return unique_filename
 
 def get_file_size(file_path: str) -> int:
@@ -250,3 +164,49 @@ def delete_folder_safely(folder_path: str) -> bool:
     except Exception as e:
         print(f"Error deleting folder {folder_path}: {e}")
     return False 
+
+
+def validate_file_path(file_path: str, base_dir: str) -> bool:
+    """
+    验证文件路径安全 - 修复目录遍历漏洞
+    
+    Args:
+        file_path: 文件路径
+        base_dir: 基础目录
+        
+    Returns:
+        bool: 是否安全
+    """
+    valid, _ = SecurityValidator.validate_filepath(file_path, base_dir)
+    return valid
+
+
+def validate_file_type(file_path: str, allowed_types: set = None) -> bool:
+    """
+    验证文件类型 - 修复魔术字节检查漏洞
+    
+    Args:
+        file_path: 文件路径
+        allowed_types: 允许的MIME类型集合
+        
+    Returns:
+        bool: 是否安全
+    """
+    valid, _ = SecurityValidator.validate_file_content(file_path, allowed_types=allowed_types)
+    return valid
+
+
+def sanitize_filename(filename: str) -> str:
+    """
+    清理文件名 - 修复特殊字符过滤漏洞
+    
+    Args:
+        filename: 原始文件名
+        
+    Returns:
+        str: 安全的文件名
+    """
+    valid, result = SecurityValidator.validate_filename(filename)
+    if valid:
+        return result
+    return "file"
