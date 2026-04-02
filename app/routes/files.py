@@ -5,13 +5,13 @@ from app.models.file import File, Folder
 from app.models.system_setting import SystemSetting
 from app.models.activity import Activity
 from app.routes.auth import login_required
+from requests.adapters import HTTPAdapter
 from werkzeug.utils import secure_filename
-from werkzeug.urls import url_parse, url_join
-from sqlalchemy.orm import joinedload
 import ipaddress
 import os
 import socket
 import uuid
+import re
 from contextlib import closing
 from datetime import datetime
 import mimetypes
@@ -21,36 +21,111 @@ import json
 import zipfile
 import io
 from app.utils.transfer_tracker import TransferSpeedTracker
-import shutil
+from app.utils.security_validation import (
+    PathValidator, InputLengthValidator, 
+    SpecialCharFilter, SecurityValidator
+)
+import shutil  # 新增，用于磁盘空间检测
 from sqlalchemy import func
 from urllib.parse import unquote, urlparse
+from typing import Dict, List, Optional, Any, Tuple, Union
+from functools import wraps
 
 files = Blueprint('files', __name__)
 
-# SECURITY FIX: Helper function to validate redirect URLs (same as auth.py)
-def is_safe_url(target):
-    """Check if a redirect URL is safe (same origin)"""
-    ref_url = url_parse(request.host_url)
-    test_url = url_parse(url_join(request.host_url, target))
-    return test_url.scheme in ('http', 'https') and ref_url.netloc == test_url.netloc
+# =============================================================================
+# 权限验证装饰器和辅助函数 - 修复 IDOR 水平越权漏洞
+# =============================================================================
 
-def safe_redirect(default='files.index'):
-    """Get safe redirect URL from referrer or return default"""
-    target = request.referrer
-    if target and is_safe_url(target):
-        return redirect(target)
-    return redirect(url_for(default))
+def require_file_owner(f):
+    """装饰器：验证当前用户是否拥有指定的文件"""
+    @wraps(f)
+    def decorated_function(file_id, *args, **kwargs):
+        user_id = session.get('user_id')
+        file = File.query.filter_by(id=file_id, user_id=user_id).first()
+        if not file:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'File not found or access denied'}), 403
+            flash('File not found or access denied', 'danger')
+            return redirect(url_for('files.index'))
+        return f(file_id, *args, **kwargs)
+    return decorated_function
 
-def wants_json_response():
+def require_folder_owner(f):
+    """装饰器：验证当前用户是否拥有指定的文件夹"""
+    @wraps(f)
+    def decorated_function(folder_id, *args, **kwargs):
+        user_id = session.get('user_id')
+        folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
+        if not folder:
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({'success': False, 'error': 'Folder not found or access denied'}), 403
+            flash('Folder not found or access denied', 'danger')
+            return redirect(url_for('files.index'))
+        return f(folder_id, *args, **kwargs)
+    return decorated_function
+
+def verify_file_ownership(file_id: int, user_id: int) -> bool:
+    """验证文件是否属于指定用户"""
+    if not file_id:
+        return False
+    return File.query.filter_by(id=file_id, user_id=user_id).first() is not None
+
+def verify_folder_ownership(folder_id: int, user_id: int) -> bool:
+    """验证文件夹是否属于指定用户"""
+    if not folder_id:
+        return False
+    return Folder.query.filter_by(id=folder_id, user_id=user_id).first() is not None
+
+def get_user_file_or_404(file_id: int, user_id: int, include_deleted: bool = False):
+    """获取用户的文件，如果不存在则返回404"""
+    query = File.query.filter_by(id=file_id, user_id=user_id)
+    if not include_deleted:
+        query = query.filter_by(is_deleted=False)
+    return query.first_or_404()
+
+def get_user_folder_or_404(folder_id: int, user_id: int, include_deleted: bool = False):
+    """获取用户的文件夹，如果不存在则返回404"""
+    query = Folder.query.filter_by(id=folder_id, user_id=user_id)
+    if not include_deleted:
+        query = query.filter_by(is_deleted=False)
+    return query.first_or_404()
+
+def get_user_files_in_folder(folder_id: int, user_id: int, include_deleted: bool = False):
+    """安全地获取用户文件夹中的所有文件（带权限验证）"""
+    # 首先验证文件夹所有权
+    folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
+    if not folder:
+        return []
+    query = File.query.filter_by(folder_id=folder_id, user_id=user_id)
+    if not include_deleted:
+        query = query.filter_by(is_deleted=False)
+    return query.all()
+
+def get_user_subfolders(folder_id: int, user_id: int, include_deleted: bool = False):
+    """安全地获取用户文件夹中的所有子文件夹（带权限验证）"""
+    # 首先验证文件夹所有权
+    folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
+    if not folder:
+        return []
+    query = Folder.query.filter_by(parent_id=folder_id, user_id=user_id)
+    if not include_deleted:
+        query = query.filter_by(is_deleted=False)
+    return query.all()
+
+def wants_json_response() -> bool:
+    """Check if the request wants a JSON response."""
     return (
         request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         or request.accept_mimetypes.best == 'application/json'
     )
 
-def get_files_page_context(user_id, folder_id=None):
+def get_files_page_context(user_id: int, folder_id: Optional[int] = None) -> Dict[str, Any]:
+    """Get context data for the files page."""
     if folder_id:
         current_folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
-        parent_folder = Folder.query.filter_by(id=current_folder.parent_id).first() if current_folder.parent_id else None
+        # 验证父文件夹所有权
+        parent_folder = Folder.query.filter_by(id=current_folder.parent_id, user_id=user_id).first() if current_folder.parent_id else None
     else:
         current_folder = Folder.query.filter_by(user_id=user_id, parent_id=None, is_deleted=False).first()
         if not current_folder:
@@ -60,8 +135,7 @@ def get_files_page_context(user_id, folder_id=None):
         parent_folder = None
 
     subfolders = Folder.query.filter_by(parent_id=current_folder.id, user_id=user_id, is_deleted=False).all()
-    # PERFORMANCE: Use joinedload to prevent N+1 queries when accessing file.folder
-    files = File.query.options(joinedload(File.folder)).filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
+    files = File.query.filter_by(folder_id=current_folder.id, user_id=user_id, is_deleted=False).all()
 
     user = User.query.get(user_id)
     storage_used = sync_user_storage_used(user)
@@ -80,7 +154,8 @@ def get_files_page_context(user_id, folder_id=None):
         'all_folders': all_folders,
     }
 
-def build_upload_feedback(uploaded_count, error_count):
+def build_upload_feedback(uploaded_count: int, error_count: int) -> Dict[str, str]:
+    """Build feedback message for upload operations."""
     if uploaded_count == 0:
         return {
             'state': 'error',
@@ -101,7 +176,10 @@ def build_upload_feedback(uploaded_count, error_count):
         'message': f'All {uploaded_count} file(s) uploaded successfully.',
     }
 
-def build_upload_json_payload(user_id, folder_id, uploaded_count, error_count, recent_items=None):
+def build_upload_json_payload(user_id: int, folder_id: Optional[int], 
+                              uploaded_count: int, error_count: int, 
+                              recent_items: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    """Build JSON payload for upload response."""
     context = get_files_page_context(user_id, folder_id)
 
     if context['storage_percent'] > 90:
@@ -139,8 +217,8 @@ def build_upload_json_payload(user_id, folder_id, uploaded_count, error_count, r
         ),
     }
 
-def allowed_file(filename):
-    # Get allowed file types from system settings
+def allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed based on system settings."""
     allowed_types_setting = SystemSetting.query.filter_by(key='allowed_file_types').first()
     if allowed_types_setting:
         allowed_types = allowed_types_setting.get_typed_value()
@@ -153,14 +231,13 @@ def allowed_file(filename):
         return '.' in filename and \
                filename.rsplit('.', 1)[1].lower() in allowed_extensions
     
-    # Default allowed extensions if setting not found
     return '.' in filename
 
-def get_file_type(filename):
+def get_file_type(filename: str) -> str:
+    """Categorize file by its type based on MIME type or extension."""
     extension = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
     mime_type, _ = mimetypes.guess_type(filename)
     
-    # Categorize files
     if mime_type:
         if mime_type.startswith('image/'):
             return 'image'
@@ -179,23 +256,22 @@ def get_file_type(filename):
         elif mime_type.startswith('application/'):
             return 'application'
     
-    # Based on extension
     if extension in ['zip', 'rar', '7z', 'tar', 'gz']:
         return 'archive'
     
     return 'other'
 
-def get_free_space(path):
-    """Return free space (in bytes) for the disk containing the given path"""
+def get_free_space(path: str) -> int:
+    """Return free space (in bytes) for the disk containing the given path."""
     try:
         usage = shutil.disk_usage(path)
         return usage.free
     except Exception as e:
         print(f"Error getting free space for {path}: {e}")
-        # 如果无法获取，返回0表示空间不足
         return 0
 
-def cleanup_saved_file(path):
+def cleanup_saved_file(path: Optional[str]) -> None:
+    """Clean up a saved file if it exists."""
     if not path:
         return
     try:
@@ -204,79 +280,91 @@ def cleanup_saved_file(path):
     except OSError as exc:
         print(f"Error cleaning up file {path}: {exc}")
 
-def normalize_item_name(raw_value):
+def normalize_item_name(raw_value: Optional[str]) -> Optional[str]:
     """Normalize and validate item name to prevent path traversal attacks.
+    修复: 强化路径验证、输入长度限制、完善特殊字符过滤
     
     Returns None if the name is invalid or potentially dangerous.
     """
     if raw_value is None:
         return None
 
-    # Check for null bytes which can be used for injection attacks
+    # 漏洞修复3: 输入长度限制检查
+    valid, msg = InputLengthValidator.validate(raw_value, 'filename', min_length=1)
+    if not valid:
+        return None
+    
+    # 漏洞修复4: 控制字符检查
+    if any(ord(c) < 32 for c in raw_value):
+        return None
+    
+    # 空字节检查
     if '\x00' in raw_value:
         return None
     
-    # Normalize Unicode to prevent homograph attacks
     import unicodedata
     try:
         value = unicodedata.normalize('NFC', raw_value.strip())
     except (TypeError, ValueError):
         return None
     
-    # Reject empty names
     if not value:
         return None
     
-    # Reject current and parent directory references
     if value in {'.', '..'}:
         return None
     
-    # Check for path traversal patterns
-    # This checks for sequences like ../, ..\, /.., \.., etc.
+    # 漏洞修复1: 强化路径验证 - 扩展危险模式列表
     dangerous_patterns = [
         '../', '..\\', '/..', '\\..',
         '..%2f', '..%2F', '%2e%2e', '%252e%252e',
-        '....', '.....'
+        '....', '.....', '....\\',
+        '%2e%2e%2f', '%252e%252e%252f',
+        '..%00', '..%00/',
+        '\x00', '%00',
     ]
     lower_value = value.lower()
     for pattern in dangerous_patterns:
         if pattern in lower_value:
             return None
     
-    # Reject names that look like absolute paths
+    # 检查路径分隔符
     if value.startswith('/') or value.startswith('\\'):
         return None
     
-    # Reject Windows drive letter patterns (e.g., C:, D:)
+    # 检查Windows盘符
     if re.match(r'^[a-zA-Z]:', value):
         return None
     
-    # Check length limit
-    if len(value) > 255:
-        return None
+    # 漏洞修复4: 完善特殊字符过滤
+    # 移除或替换危险Unicode字符
+    value = SpecialCharFilter.sanitize_unicode(value)
     
-    # Reject path separators
+    # 移除控制字符
+    value = SpecialCharFilter.sanitize_control_chars(value)
+    
+    # 移除路径分隔符
     if any(separator in value for separator in ('/', '\\')):
         return None
     
-    # Reject control characters
-    if any(ord(character) < 32 for character in value):
-        return None
-    
-    # Reject names that are reserved on Windows
+    # 检查保留文件名 (Windows)
     reserved_names = {
         'con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4',
         'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 
         'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9'
     }
-    # Check base name without extension
     base_name = value.lower().split('.')[0]
     if base_name in reserved_names:
+        return None
+    
+    # 漏洞修复4: 检查脚本注入特征
+    if SpecialCharFilter.has_script_content(value):
         return None
 
     return value
 
-def build_storage_filename(filename):
+def build_storage_filename(filename: str) -> str:
+    """Build a unique storage filename with UUID prefix."""
     safe_name = secure_filename(filename)
     if safe_name:
         return f"{uuid.uuid4().hex}_{safe_name}"
@@ -286,7 +374,8 @@ def build_storage_filename(filename):
     return f"{uuid.uuid4().hex}_{fallback_name}"
 
 
-def sync_user_storage_used(user):
+def sync_user_storage_used(user: Optional[User]) -> int:
+    """Synchronize user's storage usage by calculating total file sizes."""
     if user is None:
         return 0
 
@@ -295,9 +384,20 @@ def sync_user_storage_used(user):
     return total_size
 
 
-def resolve_managed_file_path(file_path):
+def resolve_managed_file_path(file_path: str) -> Optional[str]:
+    """Resolve and validate file path is within upload folder.
+    修复: 强化路径验证，防止目录遍历攻击
+    """
+    # 漏洞修复1 & 3: 路径验证和长度限制
+    valid, result = SecurityValidator.validate_filepath(
+        file_path, 
+        base_dir=current_app.config.get('UPLOAD_FOLDER')
+    )
+    if not valid:
+        return None
+    
     upload_root = os.path.realpath(current_app.config['UPLOAD_FOLDER'])
-    target_path = os.path.realpath(file_path)
+    target_path = os.path.realpath(result)
 
     try:
         common_path = os.path.commonpath([upload_root, target_path])
@@ -310,7 +410,8 @@ def resolve_managed_file_path(file_path):
     return target_path
 
 
-def is_blocked_remote_ip(ip_text):
+def is_blocked_remote_ip(ip_text: str) -> bool:
+    """Check if IP address is blocked (private, loopback, etc.)."""
     try:
         ip = ipaddress.ip_address(ip_text)
     except ValueError:
@@ -326,7 +427,8 @@ def is_blocked_remote_ip(ip_text):
     )
 
 
-def validate_remote_download_url(file_url):
+def validate_remote_download_url(file_url: str) -> Any:
+    """Validate remote download URL is safe."""
     parsed = urlparse(file_url)
     if parsed.scheme not in {'http', 'https'}:
         raise ValueError('Invalid URL')
@@ -338,7 +440,8 @@ def validate_remote_download_url(file_url):
     return parsed
 
 
-def resolve_remote_connect_target(parsed_url):
+def resolve_remote_connect_target(parsed_url: Any) -> Dict[str, Any]:
+    """Resolve remote connect target with IP validation."""
     hostname = parsed_url.hostname
     if not hostname:
         raise ValueError('Invalid URL')
@@ -384,7 +487,8 @@ def resolve_remote_connect_target(parsed_url):
     return allowed_target
 
 
-def prepare_remote_request(request_url):
+def prepare_remote_request(request_url: str) -> Dict[str, Any]:
+    """Prepare remote download request with security checks."""
     parsed = validate_remote_download_url(request_url)
     target = resolve_remote_connect_target(parsed)
     direct_url = build_direct_connect_url(parsed, target['resolved_ip'], target['connect_port'])
@@ -398,7 +502,9 @@ def prepare_remote_request(request_url):
     }
 
 
-def create_remote_download_session():
+def create_remote_download_session() -> Any:
+    """Create a requests session for remote downloads with custom adapter."""
+    import requests
     session = requests.Session()
     session.trust_env = False
     adapter = RemoteDownloadAdapter()
@@ -407,22 +513,8 @@ def create_remote_download_session():
     return session
 
 
-class RemoteDownloadAdapter(HTTPAdapter):
-    def init_poolmanager(self, *args, **kwargs):
-        kwargs.setdefault('assert_hostname', False)
-        return super().init_poolmanager(*args, **kwargs)
-
-    def send(self, request, **kwargs):
-        remote_request = prepare_remote_request(request.url)
-
-        request.headers['Host'] = remote_request['target']['hostname']
-        request.url = remote_request['direct_url']
-        kwargs['verify'] = remote_request['verify']
-        kwargs.pop('allow_redirects', None)
-        return super().send(request, **kwargs)
-
-
-def build_direct_connect_url(parsed_url, resolved_ip, connect_port):
+def build_direct_connect_url(parsed_url: Any, resolved_ip: str, connect_port: int) -> str:
+    """Build direct connect URL with resolved IP."""
     if ':' in resolved_ip and not resolved_ip.startswith('['):
         netloc_host = f'[{resolved_ip}]'
     else:
@@ -437,7 +529,9 @@ def build_direct_connect_url(parsed_url, resolved_ip, connect_port):
     return parsed_url._replace(netloc=netloc).geturl()
 
 
-def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
+def folder_name_exists(user_id: int, parent_id: Optional[int], folder_name: str, 
+                       exclude_folder_id: Optional[int] = None) -> bool:
+    """Check if a folder with the given name already exists."""
     query = Folder.query.filter(
         Folder.user_id == user_id,
         Folder.parent_id == parent_id,
@@ -448,9 +542,9 @@ def folder_name_exists(user_id, parent_id, folder_name, exclude_folder_id=None):
         query = query.filter(Folder.id != exclude_folder_id)
     return query.first() is not None
 
-def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
-    """Check if a file with the same name exists in the folder.
-    Uses case-insensitive comparison for cross-platform compatibility."""
+def file_name_exists(user_id: int, folder_id: int, filename: str, 
+                     exclude_file_id: Optional[int] = None) -> bool:
+    """Check if a file with the same name exists in the folder."""
     query = File.query.filter(
         File.user_id == user_id,
         File.folder_id == folder_id,
@@ -461,14 +555,9 @@ def file_name_exists(user_id, folder_id, filename, exclude_file_id=None):
         query = query.filter(File.id != exclude_file_id)
     return query.first() is not None
 
-def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
-    """Generate a unique filename, handling race conditions.
-    
-    Uses database locking to prevent concurrent uploads from creating duplicates.
-    Returns the unique filename or None if unable to generate one.
-    """
-    from sqlalchemy import func
-    
+def generate_unique_filename(user_id: int, folder_id: int, filename: str, 
+                             max_attempts: int = 100) -> Optional[str]:
+    """Generate a unique filename, handling race conditions."""
     base_name, extension = os.path.splitext(filename)
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
     
@@ -478,8 +567,6 @@ def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
         else:
             candidate = f"{base_name}_{timestamp}_{attempt}{extension}"
         
-        # Use database lock to prevent race conditions
-        # Check existence with a lock on the folder row
         existing = File.query.filter(
             File.user_id == user_id,
             File.folder_id == folder_id,
@@ -492,7 +579,8 @@ def generate_unique_filename(user_id, folder_id, filename, max_attempts=100):
     
     return None
 
-def escaped_like_query(value):
+def escaped_like_query(value: str) -> str:
+    """Escape special characters for SQL LIKE queries."""
     return value.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
 
 @files.route('/files')
@@ -862,16 +950,17 @@ def trash():
         # subfolders = Folder.query.filter_by(parent_id=folder.id, is_deleted=True).all()
         # folder_files = File.query.filter_by(folder_id=folder.id, is_deleted=True).all()
         
-        # Function to recursively get all subfolders
+        # Function to recursively get all subfolders with ownership verification
         def get_subfolder_tree(parent_folder):
             result = {
                 'folder': parent_folder,
                 'subfolders': [],
-                'files': File.query.filter_by(folder_id=parent_folder.id, is_deleted=True).all()
+                # 只查询当前用户的文件
+                'files': File.query.filter_by(folder_id=parent_folder.id, user_id=user_id, is_deleted=True).all()
             }
             
-            # Find all direct subfolders
-            direct_subfolders = Folder.query.filter_by(parent_id=parent_folder.id, is_deleted=True).all()
+            # Find all direct subfolders with ownership verification
+            direct_subfolders = Folder.query.filter_by(parent_id=parent_folder.id, user_id=user_id, is_deleted=True).all()
             for subfolder in direct_subfolders:
                 result['subfolders'].append(get_subfolder_tree(subfolder))
                 
@@ -933,7 +1022,8 @@ def restore_file(file_id):
     def restore_parent_folders(folder_id):
         if folder_id is None:
             return
-        parent_folder = Folder.query.filter_by(id=folder_id).first()
+        # 验证父文件夹所有权
+        parent_folder = Folder.query.filter_by(id=folder_id, user_id=user_id).first()
         if parent_folder and parent_folder.is_deleted:
             parent_folder.restore_from_trash()
             restore_parent_folders(parent_folder.parent_id)
@@ -982,23 +1072,26 @@ def restore_folder(folder_id):
     # Restore folder
     folder.restore_from_trash()
     
-    # Also restore all files in this folder
+    # Also restore all files in this folder (verified ownership)
     files_count = 0
-    for file in File.query.filter_by(folder_id=folder.id, is_deleted=True).all():
+    folder_files = File.query.filter_by(folder_id=folder.id, user_id=user_id, is_deleted=True).all()
+    for file in folder_files:
         file.restore_from_trash()
         files_count += 1
     
-    # Recursively restore all subfolders and their contents
+    # Recursively restore all subfolders and their contents with ownership verification
     folders_count = 0
     def restore_subfolders_recursively(parent_id):
-        nonlocal folders_count
-        subfolders = Folder.query.filter_by(parent_id=parent_id, is_deleted=True).all()
+        nonlocal folders_count, files_count
+        # 只查询当前用户的子文件夹
+        subfolders = Folder.query.filter_by(parent_id=parent_id, user_id=user_id, is_deleted=True).all()
         for subfolder in subfolders:
             subfolder.restore_from_trash()
             folders_count += 1
             
-            # Restore all files in this subfolder
-            for file in File.query.filter_by(folder_id=subfolder.id, is_deleted=True).all():
+            # Restore all files in this subfolder (verified ownership)
+            subfolder_files = File.query.filter_by(folder_id=subfolder.id, user_id=user_id, is_deleted=True).all()
+            for file in subfolder_files:
                 file.restore_from_trash()
                 files_count += 1
             
@@ -1067,7 +1160,7 @@ def delete_file(file_id):
         sync_user_storage_used(user)
         db.session.commit()
     
-    return safe_redirect('files.index')
+    return redirect(request.referrer or url_for('files.index'))
 
 @files.route('/files/delete_folder/<int:folder_id>', methods=['POST'])
 @login_required
@@ -1080,17 +1173,19 @@ def delete_folder(folder_id):
         # Permanently delete folder and all its contents
         folder_name = folder.name
         
-        # Get all files in this folder
-        files_in_folder = File.query.filter_by(folder_id=folder.id).all()
+        # Get all files in this folder (verified ownership)
+        files_in_folder = get_user_files_in_folder(folder.id, user_id, include_deleted=True)
         for file in files_in_folder:
             file.permanently_delete()
         
-        # Handle subfolders recursively
+        # Handle subfolders recursively with ownership verification
         def delete_subfolders_recursively(parent_id):
-            subfolders = Folder.query.filter_by(parent_id=parent_id).all()
+            # 只查询当前用户的子文件夹
+            subfolders = Folder.query.filter_by(parent_id=parent_id, user_id=user_id).all()
             for subfolder in subfolders:
-                # Delete all files in this subfolder
-                for file in File.query.filter_by(folder_id=subfolder.id).all():
+                # Delete all files in this subfolder (verified ownership)
+                subfolder_files = File.query.filter_by(folder_id=subfolder.id, user_id=user_id).all()
+                for file in subfolder_files:
                     file.permanently_delete()
                 
                 # Recursively handle sub-subfolders
@@ -1114,20 +1209,23 @@ def delete_folder(folder_id):
         user = User.query.get(user_id)
         total_moved_size = 0
         
-        # Also mark all contained files as deleted
-        for file in File.query.filter_by(folder_id=folder.id, is_deleted=False).all():
+        # Also mark all contained files as deleted (verified ownership)
+        folder_files = get_user_files_in_folder(folder.id, user_id, include_deleted=False)
+        for file in folder_files:
             total_moved_size += file.size
             file.move_to_trash()
         
-        # And all subfolders
+        # And all subfolders with ownership verification
         def trash_subfolders_recursively(parent_id):
             nonlocal total_moved_size
-            subfolders = Folder.query.filter_by(parent_id=parent_id, is_deleted=False).all()
+            # 只查询当前用户的子文件夹
+            subfolders = Folder.query.filter_by(parent_id=parent_id, user_id=user_id, is_deleted=False).all()
             for subfolder in subfolders:
                 subfolder.move_to_trash()
                 
-                # Move all files in subfolder to trash
-                for file in File.query.filter_by(folder_id=subfolder.id, is_deleted=False).all():
+                # Move all files in subfolder to trash (verified ownership)
+                subfolder_files = File.query.filter_by(folder_id=subfolder.id, user_id=user_id, is_deleted=False).all()
+                for file in subfolder_files:
                     total_moved_size += file.size
                     file.move_to_trash()
                 
@@ -1159,7 +1257,7 @@ def delete_folder(folder_id):
         sync_user_storage_used(user)
         db.session.commit()
     
-    return safe_redirect('files.index')
+    return redirect(request.referrer or url_for('files.index'))
 
 @files.route('/files/empty_trash', methods=['POST'])
 @login_required
@@ -1206,12 +1304,12 @@ def create_folder():
     
     if not folder_name:
         flash('Enter a valid folder name without path separators', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     # Check if folder already exists in the same parent
     if folder_name_exists(user_id, parent_id, folder_name):
         flash('A folder with this name already exists', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     # Create new folder
     new_folder = Folder(
@@ -1232,21 +1330,24 @@ def search_files():
     user_id = session.get('user_id')
     query = request.args.get('query', '').strip()
     
-    # SECURITY: Limit search query length to prevent DoS
-    MAX_QUERY_LENGTH = 100
-    if len(query) > MAX_QUERY_LENGTH:
-        if wants_json_response():
-            return jsonify({'error': 'Search query too long'}), 400
-        flash('Search query too long', 'danger')
+    # 漏洞修复3: 搜索查询长度限制
+    if not query:
         return redirect(url_for('files.index'))
     
-    if not query:
+    valid, msg = InputLengthValidator.validate(query, 'search_query')
+    if not valid:
+        flash('搜索查询过长', 'warning')
+        return redirect(url_for('files.index'))
+    
+    # 漏洞修复4: 检查搜索查询中的危险内容
+    if SpecialCharFilter.has_script_content(query):
+        flash('搜索查询包含非法内容', 'warning')
         return redirect(url_for('files.index'))
 
     like_query = f"%{escaped_like_query(query)}%"
     
-    # PERFORMANCE: Use joinedload to prevent N+1 queries when accessing file.folder
-    files = File.query.options(joinedload(File.folder)).filter(
+    # Search for files and folders matching the query
+    files = File.query.filter(
         File.user_id == user_id,
         File.is_deleted.is_(False),
         File.original_filename.ilike(like_query, escape='\\')
@@ -1283,7 +1384,7 @@ def rename_file(file_id):
     
     if not new_name:
         flash('Enter a valid file name without path separators', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     file = File.query.filter_by(id=file_id, user_id=user_id, is_deleted=False).first_or_404()
     
@@ -1295,11 +1396,11 @@ def rename_file(file_id):
     new_name = normalize_item_name(new_name)
     if not new_name:
         flash('Enter a valid file name without path separators', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
 
     if file_name_exists(user_id, file.folder_id, new_name, exclude_file_id=file.id):
         flash('A file with this name already exists in this folder', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
 
     file.original_filename = new_name
     file.updated_at = datetime.utcnow()
@@ -1307,7 +1408,7 @@ def rename_file(file_id):
     db.session.commit()
     
     flash('File renamed successfully', 'success')
-    return safe_redirect('files.index')
+    return redirect(request.referrer or url_for('files.index'))
 
 @files.route('/files/rename_folder/<int:folder_id>', methods=['POST'])
 @login_required
@@ -1317,14 +1418,14 @@ def rename_folder(folder_id):
     
     if not new_name:
         flash('Enter a valid folder name without path separators', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     folder = Folder.query.filter_by(id=folder_id, user_id=user_id, is_deleted=False).first_or_404()
     
     # Check if a folder with this name already exists in the same parent
     if folder_name_exists(user_id, folder.parent_id, new_name, exclude_folder_id=folder_id):
         flash('A folder with this name already exists', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     folder.name = new_name
     folder.updated_at = datetime.utcnow()
@@ -1332,7 +1433,7 @@ def rename_folder(folder_id):
     db.session.commit()
     
     flash('Folder renamed successfully', 'success')
-    return safe_redirect('files.index')
+    return redirect(request.referrer or url_for('files.index'))
 
 @files.route('/files/history')
 @login_required
@@ -1404,12 +1505,6 @@ def batch_restore():
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
     
-    # SECURITY: Limit batch size to prevent DoS
-    MAX_BATCH_SIZE = 50
-    if len(selected_items) > MAX_BATCH_SIZE:
-        flash(f'Maximum {MAX_BATCH_SIZE} items allowed per batch operation', 'danger')
-        return redirect(url_for('files.trash'))
-    
     if not selected_items:
         flash('No items selected', 'warning')
         return redirect(url_for('files.trash'))
@@ -1427,11 +1522,12 @@ def batch_restore():
             file = File.query.filter_by(id=item_id, user_id=user_id, is_deleted=True).first()
             if file:
                 file.restore_from_trash()
-                # Ensure parent folders are restored
+                # Ensure parent folders are restored (with ownership verification)
                 def restore_parents(fid):
                     if fid is None:
                         return
-                    pf = Folder.query.filter_by(id=fid).first()
+                    # 验证父文件夹所有权
+                    pf = Folder.query.filter_by(id=fid, user_id=user_id).first()
                     if pf and pf.is_deleted:
                         pf.restore_from_trash()
                         restore_parents(pf.parent_id)
@@ -1446,18 +1542,21 @@ def batch_restore():
                 # Restore folder
                 folder.restore_from_trash()
                 
-                # Restore files in folder
-                for file in File.query.filter_by(folder_id=folder.id, is_deleted=True).all():
+                # Restore files in folder (verified ownership)
+                folder_files = File.query.filter_by(folder_id=folder.id, user_id=user_id, is_deleted=True).all()
+                for file in folder_files:
                     file.restore_from_trash()
                 
-                # Recursively restore subfolders and their contents
+                # Recursively restore subfolders and their contents with ownership verification
                 def restore_subfolders(parent_id):
-                    subfolders = Folder.query.filter_by(parent_id=parent_id, is_deleted=True).all()
+                    # 只查询当前用户的子文件夹
+                    subfolders = Folder.query.filter_by(parent_id=parent_id, user_id=user_id, is_deleted=True).all()
                     for subfolder in subfolders:
                         subfolder.restore_from_trash()
                         
-                        # Restore files in subfolder
-                        for file in File.query.filter_by(folder_id=subfolder.id, is_deleted=True).all():
+                        # Restore files in subfolder (verified ownership)
+                        subfolder_files = File.query.filter_by(folder_id=subfolder.id, user_id=user_id, is_deleted=True).all()
+                        for file in subfolder_files:
                             file.restore_from_trash()
                         
                         # Recursively restore next level of subfolders
@@ -1486,12 +1585,6 @@ def batch_restore():
 def batch_delete():
     user_id = session.get('user_id')
     selected_items = request.form.getlist('selected_items[]')
-    
-    # SECURITY: Limit batch size to prevent DoS
-    MAX_BATCH_SIZE = 50
-    if len(selected_items) > MAX_BATCH_SIZE:
-        flash(f'Maximum {MAX_BATCH_SIZE} items allowed per batch operation', 'danger')
-        return redirect(url_for('files.index'))
     
     if not selected_items:
         flash('No items selected for deletion', 'warning')
@@ -1636,37 +1729,33 @@ def batch_move():
     selected_items = request.form.getlist('selected_items[]')
     destination_id = request.form.get('destination_id', type=int)
     
-    # SECURITY: Limit batch size to prevent DoS
-    MAX_BATCH_SIZE = 50
-    if len(selected_items) > MAX_BATCH_SIZE:
-        flash(f'Maximum {MAX_BATCH_SIZE} items allowed per batch operation', 'danger')
-        return safe_redirect('files.index')
-    
     if destination_id is None:
         flash('No destination folder selected', 'warning')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     # Ensure destination folder exists and belongs to the user
     destination_folder = Folder.query.filter_by(id=destination_id, user_id=user_id, is_deleted=False).first()
     if not destination_folder:
         flash('Destination folder not found', 'danger')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     if not selected_items:
         flash('No items selected', 'warning')
-        return safe_redirect('files.index')
+        return redirect(request.referrer or url_for('files.index'))
     
     moved_files = 0
     moved_folders = 0
     skipped = 0
     
-    # Helper to check if folder_a is descendant of folder_b
+    # Helper to check if folder_a is descendant of folder_b (with ownership verification)
     def is_descendant(folder_a_id, folder_b_id):
-        current = Folder.query.filter_by(id=folder_b_id).first()
+        # 验证目标文件夹所有权
+        current = Folder.query.filter_by(id=folder_b_id, user_id=user_id).first()
         while current and current.parent_id is not None:
             if current.parent_id == folder_a_id:
                 return True
-            current = Folder.query.filter_by(id=current.parent_id).first()
+            # 继续验证父文件夹所有权
+            current = Folder.query.filter_by(id=current.parent_id, user_id=user_id).first()
         return False
     
     for item in selected_items:

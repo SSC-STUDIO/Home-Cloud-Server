@@ -120,6 +120,45 @@ class Config:
     DEFAULT_ADMIN_PASSWORD = read_secret_setting('DEFAULT_ADMIN_PASSWORD')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
+    # =========================================================================
+    # Session Cookie Security Configuration
+    # 修复漏洞: 会话Cookie安全 - 缺少Secure/HttpOnly/SameSite
+    # =========================================================================
+    # Session cookie secure flag - 仅通过HTTPS传输
+    SESSION_COOKIE_SECURE = get_env_bool('SESSION_COOKIE_SECURE', True)
+    
+    # Session cookie HttpOnly flag - 防止XSS攻击访问cookie
+    SESSION_COOKIE_HTTPONLY = get_env_bool('SESSION_COOKIE_HTTPONLY', True)
+    
+    # Session cookie SameSite flag - 防止CSRF攻击
+    # 可选值: 'Strict', 'Lax', 'None'
+    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    
+    # Session cookie name (避免使用默认的'session')
+    SESSION_COOKIE_NAME = os.environ.get('SESSION_COOKIE_NAME', 'home_cloud_session')
+    
+    # Session permanent lifetime (默认24小时)
+    PERMANENT_SESSION_LIFETIME = get_env_int('PERMANENT_SESSION_LIFETIME', 86400)
+    
+    # Session type (filesystem for better security than client-side cookie)
+    SESSION_TYPE = os.environ.get('SESSION_TYPE', 'filesystem')
+    
+    # Session file directory (当SESSION_TYPE为filesystem时使用)
+    SESSION_FILE_DIR = os.environ.get('SESSION_FILE_DIR', '/tmp/flask_sessions')
+    
+    # =========================================================================
+    # Concurrent Login Detection Configuration
+    # 修复漏洞: 会话验证 - 并发登录检测
+    # =========================================================================
+    # 是否启用并发登录检测
+    CONCURRENT_LOGIN_DETECTION = get_env_bool('CONCURRENT_LOGIN_DETECTION', True)
+    
+    # 是否允许多设备同时登录 (False = 新登录会使旧会话失效)
+    ALLOW_MULTIPLE_SESSIONS = get_env_bool('ALLOW_MULTIPLE_SESSIONS', False)
+    
+    # 会话过期时间（小时）
+    SESSION_EXPIRE_HOURS = get_env_int('SESSION_EXPIRE_HOURS', 24)
+    
     # Database connection pool configuration
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_size': DB_POOL_SIZE,

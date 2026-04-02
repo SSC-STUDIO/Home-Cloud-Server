@@ -433,10 +433,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            const start = escapeHtml(originalText.slice(0, matchIndex));
-            const middle = escapeHtml(originalText.slice(matchIndex, matchIndex + normalizedQuery.length));
-            const end = escapeHtml(originalText.slice(matchIndex + normalizedQuery.length));
-            element.innerHTML = `${start}<span class="search-hit">${middle}</span>${end}`;
+            const beforeText = originalText.slice(0, matchIndex);
+            const matchText = originalText.slice(matchIndex, matchIndex + normalizedQuery.length);
+            const afterText = originalText.slice(matchIndex + normalizedQuery.length);
+
+            element.textContent = "";
+
+            if (beforeText) {
+                element.appendChild(document.createTextNode(beforeText));
+            }
+
+            const hitSpan = document.createElement("span");
+            hitSpan.className = "search-hit";
+            hitSpan.textContent = matchText;
+            element.appendChild(hitSpan);
+
+            if (afterText) {
+                element.appendChild(document.createTextNode(afterText));
+            }
         });
     }
 

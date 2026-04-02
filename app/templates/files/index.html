@@ -211,5 +211,6 @@
 {% endblock %}
 
 {% block scripts %}
+<script defer src="{{ url_for('static', filename='vendor/purify.min.js') }}"></script>
 <script defer src="{{ url_for('static', filename='js/files-index.js') }}"></script>
 {% endblock %}
