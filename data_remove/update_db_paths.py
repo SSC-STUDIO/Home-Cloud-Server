@@ -22,6 +22,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def validate_sql_identifier(identifier):
+    """验证SQL标识符是否合法（防止SQL注入）"""
+    import re
+    if not identifier:
+        return False
+    # 只允许字母、数字、下划线，且不能以数字开头
+    pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+    return bool(re.match(pattern, identifier))
+
 def update_file_paths(db_path, old_path_prefix, new_path_prefix, dry_run=False):
     """Update file path mappings in the database
     
@@ -155,6 +164,11 @@ def check_database_structure(db_path):
             table_name = table[0]
             logger.info(f'  - {table_name}')
             
+            # SECURITY FIX: Validate table name before using in PRAGMA
+            if not validate_sql_identifier(table_name):
+                logger.warning(f'    Skipping invalid table name: {table_name}')
+                continue
+            
             # Get table structure
             cursor.execute(f"PRAGMA table_info({table_name})")
             columns = cursor.fetchall()
@@ -183,6 +197,14 @@ def check_database_structure(db_path):
 
 def update_file_paths_in_table(db_path, table_name, column_name, old_path_prefix, new_path_prefix, dry_run):
     """Update file paths in the specified table"""
+    # SECURITY FIX: Validate identifiers to prevent SQL injection
+    if not validate_sql_identifier(table_name):
+        logger.error(f'Invalid table name: {table_name}')
+        return 0, 1
+    if not validate_sql_identifier(column_name):
+        logger.error(f'Invalid column name: {column_name}')
+        return 0, 1
+    
     conn = None
     success = 0
     failed = 0

@@ -23,7 +23,8 @@ import io
 from app.utils.transfer_tracker import TransferSpeedTracker
 from app.utils.security_validation import (
     PathValidator, InputLengthValidator, 
-    SpecialCharFilter, SecurityValidator
+    SpecialCharFilter, SecurityValidator,
+    MagicBytesValidator
 )
 import shutil  # 新增，用于磁盘空间检测
 from sqlalchemy import func
@@ -798,6 +799,25 @@ def upload_file():
                         raise Exception('direct_save_file failed')
 
                 saved_file_paths.append(save_path)
+                
+                # SECURITY FIX: Validate file magic bytes to prevent fake extension attacks
+                allowed_mimes = {
+                    'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp', 'image/tiff',
+                    'application/pdf', 'text/plain', 'text/csv',
+                    'application/zip', 'application/x-zip-compressed',
+                    'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                }
+                is_valid, validation_msg = MagicBytesValidator.validate_file_type(
+                    save_path, allowed_types=allowed_mimes
+                )
+                if not is_valid:
+                    cleanup_saved_file(save_path)
+                    saved_file_paths.remove(save_path)
+                    flash(f'File validation failed: {validation_msg}', 'danger')
+                    error_count += 1
+                    continue
 
                 # Create file record
                 file_type = get_file_type(filename)

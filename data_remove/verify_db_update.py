@@ -23,6 +23,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def validate_sql_identifier(identifier):
+    """验证SQL标识符是否合法（防止SQL注入）"""
+    import re
+    if not identifier:
+        return False
+    # 只允许字母、数字、下划线，且不能以数字开头
+    pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+    return bool(re.match(pattern, identifier))
+
 def find_path_column(db_path):
     """Find the column containing file paths"""
     conn = None
@@ -91,6 +100,11 @@ def verify_path_update(db_path, old_path_prefix, new_path_prefix):
         
         logger.info(f'\nStarting database path update verification: {db_path}')
         logger.info(f'Using column: {path_column}')
+        
+        # SECURITY FIX: Validate column name to prevent SQL injection
+        if not validate_sql_identifier(path_column):
+            logger.error(f'Invalid column name: {path_column}')
+            return False
         
         # Check if there are any old paths left
         cursor.execute(f"SELECT COUNT(*) FROM files WHERE {path_column} LIKE ?", (f"{old_path_prefix}%",))
